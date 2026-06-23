@@ -1,0 +1,12 @@
+{{- if .Values.beats.enabled }}
+{{- /* Celery beat scheduler — singleton (replicas always 1, no exports). */}}
+{{- include "yeti.workerDeployment" (dict
+  "root" .
+  "name" "beats"
+  "args" "[\"tasks-beat\"]"
+  "replicas" 1
+  "resources" .Values.beats.resources
+  "nodeSelector" .Values.beats.nodeSelector
+  "exports" false
+  "waitApi" true) }}
+{{- end }}

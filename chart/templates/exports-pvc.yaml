@@ -1,0 +1,17 @@
+{{- if and .Values.exports.enabled (not .Values.exports.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "yeti.fullname" . }}-exports
+  labels:
+    {{- include "yeti.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.exports.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.exports.size | quote }}
+  {{- with .Values.exports.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}

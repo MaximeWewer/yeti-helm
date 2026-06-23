@@ -1,0 +1,85 @@
+{{- if .Values.agents.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "yeti.agents.fullname" . }}
+  labels:
+    app.kubernetes.io/component: agents
+    {{- include "yeti.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ include "yeti.agents.fullname" . }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: agents
+      {{- include "yeti.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: agents
+        {{- include "yeti.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "yeti.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        {{- include "yeti.initWaitDeps" . | nindent 8 }}
+        {{- include "yeti.initWaitApi" . | nindent 8 }}
+      containers:
+        - name: agents
+          image: {{ include "yeti.image" (dict "img" .Values.agents.image "root" .) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "{{ .Values.agents.service.port }}"]
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: YETI_AGENTS_DB_PATH
+              value: {{ .Values.agents.dbPath | quote }}
+            {{- include "yeti.envs" . | nindent 12 }}
+          {{- include "yeti.envFrom" . | nindent 10 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.agents.service.port }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.agents.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ dir .Values.agents.dbPath }}
+      {{- with .Values.agents.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.agents.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.agents.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if not .Values.agents.persistence.enabled }}
+      volumes:
+        - name: data
+          emptyDir: {}
+      {{- end }}
+  {{- if .Values.agents.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          {{- toYaml .Values.agents.persistence.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.agents.persistence.size | quote }}
+        {{- with .Values.agents.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+  {{- end }}
+{{- end }}

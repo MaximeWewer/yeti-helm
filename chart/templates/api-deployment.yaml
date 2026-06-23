@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "yeti.api.fullname" . }}
+  labels:
+    app.kubernetes.io/component: api
+    {{- include "yeti.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: api
+      {{- include "yeti.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: api
+        {{- include "yeti.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "yeti.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        {{- include "yeti.initWaitDeps" . | nindent 8 }}
+      containers:
+        - name: api
+          image: {{ include "yeti.image" (dict "img" .Values.api.image "root" .) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Optionally bootstrap the default admin user, then start the webserver.
+          command:
+            - "sh"
+            - "-c"
+            - |
+              {{- if and (not .Release.IsUpgrade) .Values.config.createUser }}
+              if ! uv run python yetictl/cli.py list-users | grep -q 'Username: yeti'; then
+                uv run python yetictl/cli.py create-user yeti "$YETI_USER_PASSWORD" --admin
+              fi
+              {{- end }}
+              exec /docker-entrypoint.sh webserver
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            {{- include "yeti.envs" . | nindent 12 }}
+          {{- include "yeti.envFrom" . | nindent 10 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.service.port }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /openapi.json
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /openapi.json
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.exports.enabled }}
+            - name: exports
+              mountPath: {{ .Values.exports.mountPath }}
+            {{- end }}
+      volumes:
+        {{- if .Values.exports.enabled }}
+        - name: exports
+          persistentVolumeClaim:
+            claimName: {{ .Values.exports.existingClaim | default (printf "%s-exports" (include "yeti.fullname" .)) }}
+        {{- end }}
+      {{- with .Values.api.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

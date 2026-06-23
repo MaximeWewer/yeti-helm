@@ -1,0 +1,36 @@
+{{- if .Values.arangodb.enabled }}
+# Managed by the kube-arangodb operator (the operator + CRDs MUST be installed
+# cluster-wide first). Single mode = one writable node holding the Yeti graph DB.
+# TLS is disabled (Yeti connects over http:8529). The root password is bootstrapped
+# from the chart secret's `password` key (operator constants.SecretPassword).
+apiVersion: database.arangodb.com/v1
+kind: ArangoDeployment
+metadata:
+  name: {{ include "yeti.arangodb.fullname" . }}
+  labels:
+    app.kubernetes.io/component: arangodb
+    {{- include "yeti.labels" . | nindent 4 }}
+spec:
+  mode: {{ .Values.arangodb.mode }}
+  image: {{ .Values.arangodb.image | quote }}
+  tls:
+    caSecretName: "None"
+  externalAccess:
+    type: None
+  bootstrap:
+    passwordSecretNames:
+      root: {{ include "yeti.arangoSecretName" . }}
+  single:
+    resources:
+      {{- toYaml .Values.arangodb.resources | nindent 6 }}
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.arangodb.persistence.size | quote }}
+        {{- with .Values.arangodb.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+{{- end }}

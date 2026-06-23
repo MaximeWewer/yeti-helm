@@ -1,0 +1,275 @@
+# Default values for yeti.
+# Quality baseline: MaximeWewer/intelowl-helm. Operator-first deps:
+# ArangoDB via kube-arangodb (ArangoDeployment CRD), Redis via CloudPirates chart.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Optional registry prefix applied to all chart-managed images (not the redis subchart).
+image:
+  registry: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+## Yeti app components. All app containers share the YETI_* env (see _env.tpl).
+frontend:
+  image:
+    repository: yetiplatform/yeti-frontend
+    tag: "2.5.0"
+    digest: ""
+  replicas: 1
+  containerPort: 8080
+  service:
+    type: ClusterIP
+    port: 80
+  # The stock nginx (yeti-frontend) entrypoint chowns /var/cache/nginx and drops
+  # to the nginx user, so it needs CHOWN/SETUID/SETGID. Overrides the global
+  # containerSecurityContext for the frontend container only.
+  securityContext:
+    allowPrivilegeEscalation: false
+    privileged: false
+    capabilities:
+      drop:
+        - ALL
+      add:
+        - CHOWN
+        - SETUID
+        - SETGID
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+api:
+  image:
+    repository: yetiplatform/yeti
+    tag: "2.5.0"
+    digest: ""
+  replicas: 1
+  service:
+    port: 8000
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Celery worker.
+tasks:
+  replicas: 1
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Celery events worker (events-tasks).
+events:
+  enabled: true
+  replicas: 1
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Celery beat scheduler (tasks-beat). Singleton — keep replicas at 1.
+beats:
+  enabled: true
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Yeti agents service (HTTP/WebSocket on :8888, sqlite session store).
+# Disabled by default; enabling deploys the workload AND sets [agents] in the config.
+agents:
+  enabled: false
+  image:
+    repository: yetiplatform/yeti-agents
+    tag: "2.5.0"
+    digest: ""
+  service:
+    port: 8888
+  dbPath: /data/sessions.db
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 1Gi
+    accessModes:
+      - ReadWriteOnce
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Bloom filter check service (bloomcheck). Only stable on the 'dev' tag upstream.
+bloomcheck:
+  enabled: true
+  image:
+    repository: yetiplatform/bloomcheck
+    tag: "dev"
+    digest: ""
+  service:
+    port: 8100
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 2Gi
+    accessModes:
+      - ReadWriteOnce
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+## Shared exports volume (api writes, tasks/events read — RWX recommended).
+exports:
+  enabled: true
+  existingClaim: ""
+  storageClass: ""
+  size: 5Gi
+  accessModes:
+    - ReadWriteMany
+  mountPath: /opt/yeti/exports
+
+## Yeti application config.
+config:
+  # Existing Secret with keys: token (ArangoDB root pw), yeti-secret (auth key),
+  # yeti-user (initial admin password). If empty, the chart generates them.
+  existingSecret: ""
+  imagePullPolicy: IfNotPresent
+  # Create the default 'yeti' admin user on first install (password = yeti-user secret).
+  createUser: true
+  # Init container with nslookup/wget to gate startup on deps.
+  initDependencyCheck:
+    image: "busybox:1.36"
+  auth:
+    enabled: true
+    accessTokenExpireMinutes: 10000
+    browserTokenExpireMinutes: 43200
+  # [system] settings.
+  system:
+    # Export storage path. Local path (PVC) OR an S3 URI "s3://bucket/prefix"
+    # (provide AWS_* credentials via extraEnvFrom; requires the s3 extra in the image).
+    exportPath: "/opt/yeti/exports"
+  # [rbac] Role-based access control. Disabled upstream by default (all users full
+  # access). Recommended ON for shared/hardened deployments.
+  rbac:
+    enabled: false
+    defaultGlobalRole: "writer"   # writer | reader
+    defaultAcls: "All users"      # "All users" | "none"
+  # [events] events worker tuning.
+  events:
+    memoryLimit: 64               # MiB for the events queue
+    keepRatio: 0.9
+    consumersConcurrency: 2
+  # [proxy] outbound proxy for feed fetching (socks5://user:pass@host:port or http://).
+  proxy:
+    http: ""
+    https: ""
+  # [timesketch] integration (optional; Timesketch is backlog in this stack).
+  timesketch:
+    enabled: false
+    endpoint: ""
+    existingSecret: ""
+    usernameKey: "timesketch-user"
+    passwordKey: "timesketch-password"
+  # OIDC (Yeti supports OIDC via discovery URL; default config targets Google).
+  oidc:
+    enabled: false
+    discoveryUrl: "https://accounts.google.com/.well-known/openid-configuration"
+    allowedExtraAudiences: ""
+    # Secret with keys: client-id, client-secret.
+    existingSecret: ""
+
+## ArangoDB via kube-arangodb operator (the operator + CRDs must be installed).
+arangodb:
+  enabled: true
+  database: yeti
+  # Existing Secret (keys: username, password — and NO other keys, the operator
+  # rejects extra keys) for the ArangoDB root. If empty, the chart generates one.
+  rootPasswordExistingSecret: ""
+  image: "arangodb/arangodb:3.11.8"
+  # Single mode: one writable node (Yeti datastore). Cluster mode is out of scope.
+  mode: Single
+  # Override detected memory (bytes); set slightly below the pod memory request.
+  overrideDetectedTotalMemory: ""
+  persistence:
+    storageClass: ""
+    size: 8Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+## Redis (CloudPirates subchart) — Celery broker. Yeti has no Redis auth support,
+## so auth is disabled; the broker is protected by NetworkPolicy instead.
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  persistence:
+    enabled: true
+    size: 2Gi
+
+## Point Yeti at an external Redis instead of the subchart (sets redis.enabled=false).
+externalRedis:
+  host: ""
+  port: 6379
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+## Pod-level security context. fsGroup lets non-root write the exports PVC.
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+  # Enable after verifying the yeti image runs as a non-root uid (see README).
+  runAsNonRoot: false
+
+## Container-level security context (hardened; mirrors the OSDFIR baseline + more).
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  privileged: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: yeti.example.com
+  tls: []
+
+networkPolicy:
+  enabled: true
+  # Sources allowed to reach the frontend (e.g. ingress controller namespace).
+  # Each item is a standard NetworkPolicyPeer. Empty = only in-namespace peers.
+  frontendAllowedFrom: []
+  extraEgress: []
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: ""
+  maxUnavailable: ""
+
+# Extra env appended to all Yeti app containers.
+extraEnv: []
+
+# envFrom sources (Secrets/ConfigMaps) for all Yeti app containers. Use this for
+# feed/integration API keys (VT, OTX, Shodan, Censys, AbuseIPDB, DNSDB, MISP_*),
+# proxy credentials, AWS S3 export credentials (AWS_ACCESS_KEY_ID/...), datadog,
+# github token, etc. Yeti maps env YETI_<SECTION>_<KEY> to yeti.conf.
+# Example:
+#   extraEnvFrom:
+#     - secretRef:
+#         name: yeti-feeds
+extraEnvFrom: []

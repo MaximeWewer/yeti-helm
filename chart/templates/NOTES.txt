@@ -1,0 +1,33 @@
+Yeti deployed: {{ include "yeti.fullname" . }}
+
+Components: frontend, api, tasks{{ if .Values.events.enabled }}, events{{ end }}{{ if .Values.beats.enabled }}, beats{{ end }}{{ if .Values.bloomcheck.enabled }}, bloomcheck{{ end }}{{ if .Values.agents.enabled }}, agents{{ end }}
+Dependencies:
+{{- if .Values.arangodb.enabled }}
+  - ArangoDB (kube-arangodb): ArangoDeployment/{{ include "yeti.arangodb.fullname" . }} (mode {{ .Values.arangodb.mode }})
+    WARNING: the kube-arangodb operator + its CRDs must be installed BEFORE this chart.
+{{- end }}
+{{- if .Values.redis.enabled }}
+  - Redis (CloudPirates): {{ .Release.Name }}-redis (auth disabled — Yeti does not support Redis auth)
+{{- end }}
+
+GUI access:
+{{- if .Values.ingress.enabled }}
+  https://{{ .Values.ingress.host }}
+{{- else }}
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "yeti.frontend.fullname" . }} 8080:{{ .Values.frontend.service.port }}
+  then http://localhost:8080
+{{- end }}
+
+{{- if .Values.config.createUser }}
+{{- if not .Values.config.existingSecret }}
+
+Initial admin credentials:
+  user: yeti
+  pass: kubectl get secret -n {{ .Release.Namespace }} {{ include "yeti.secretName" . }} -o jsonpath='{.data.yeti-user}' | base64 -d
+{{- end }}
+{{- end }}
+
+Reminders:
+  - beats (Celery beat) = singleton, do not scale.
+  - exports = shared volume (RWX) across api/tasks/events.
+  - Yeti fetches external feeds (tasks): allow outbound egress via networkPolicy.extraEgress.

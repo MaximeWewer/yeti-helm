@@ -1,0 +1,11 @@
+{{- if .Values.events.enabled }}
+{{- include "yeti.workerDeployment" (dict
+  "root" .
+  "name" "events"
+  "args" "[\"events-tasks\"]"
+  "replicas" .Values.events.replicas
+  "resources" .Values.events.resources
+  "nodeSelector" .Values.events.nodeSelector
+  "exports" .Values.exports.enabled
+  "waitApi" true) }}
+{{- end }}

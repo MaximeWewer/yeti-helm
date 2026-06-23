@@ -1,0 +1,25 @@
+apiVersion: v2
+name: yeti
+description: Yeti (threat intelligence platform)
+type: application
+version: 1.0.0
+appVersion: "2.5.0"
+home: https://yeti-platform.io/
+sources:
+  - https://github.com/yeti-platform/yeti
+  - https://github.com/yeti-platform/yeti-docker
+keywords:
+  - yeti
+  - cti
+  - threat-intelligence
+  - dfir
+  - security
+maintainers:
+  - name: Maxime Wewer
+annotations:
+  category: Security
+dependencies:
+  - name: redis
+    version: "0.30.4"
+    repository: "oci://registry-1.docker.io/cloudpirates"
+    condition: redis.enabled
