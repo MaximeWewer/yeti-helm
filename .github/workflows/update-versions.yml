@@ -1,0 +1,127 @@
+name: Update Versions
+
+on:
+  schedule:
+    # Every Monday at 08:00 UTC
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+
+jobs:
+  update-versions:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | bash
+          curl -sSLo helm-docs.tar.gz https://github.com/norwoodj/helm-docs/releases/download/v1.14.2/helm-docs_1.14.2_Linux_x86_64.tar.gz
+          tar -xf helm-docs.tar.gz helm-docs
+          sudo mv helm-docs /usr/local/bin/helm-docs
+
+      - name: Get latest Yeti release
+        id: yeti
+        run: |
+          # All yetiplatform/* component images share one release tag (see yeti-docker compose).
+          CORE=$(curl -s https://api.github.com/repos/yeti-platform/yeti/releases/latest | jq -r '.tag_name')
+          CORE="${CORE#v}"
+          echo "core=${CORE}" >> $GITHUB_OUTPUT
+          echo "Yeti release: ${CORE}"
+
+      - name: Get latest dependency chart versions
+        id: deps
+        run: |
+          # CloudPirates Redis (OCI) — track the major.minor, let patch releases float.
+          REDIS_VERSION=$(helm show chart oci://registry-1.docker.io/cloudpirates/redis 2>/dev/null | grep '^version:' | awk '{print $2}' || true)
+          if [ -n "$REDIS_VERSION" ]; then
+            REDIS_MAJOR_MINOR=$(echo "$REDIS_VERSION" | sed 's/\.[0-9]*$/.*/')
+            echo "redis=${REDIS_MAJOR_MINOR}" >> $GITHUB_OUTPUT
+            echo "Redis latest: ${REDIS_VERSION} -> pattern ${REDIS_MAJOR_MINOR}"
+          else
+            echo "redis=" >> $GITHUB_OUTPUT
+            echo "Could not determine Redis version, skipping"
+          fi
+
+      - name: Update Chart.yaml
+        run: |
+          CORE="${{ steps.yeti.outputs.core }}"
+          REDIS="${{ steps.deps.outputs.redis }}"
+
+          # appVersion tracks the Yeti release
+          sed -i "s/^appVersion: .*/appVersion: \"${CORE}\"/" chart/Chart.yaml
+
+          # Dependency chart version
+          if [ -n "$REDIS" ]; then
+            sed -i "/name: redis/{n;s/version: .*/version: \"${REDIS}\"/}" chart/Chart.yaml
+          fi
+
+      - name: Update values.yaml
+        run: |
+          CORE="${{ steps.yeti.outputs.core }}"
+
+          # Update each yeti component image tag (matched via its repository line).
+          # api uses 'yetiplatform/yeti' which is a prefix of the others -> anchor with $.
+          sed -i "\#repository: yetiplatform/yeti-frontend#{n;s/tag: .*/tag: \"${CORE}\"/}" chart/values.yaml
+          sed -i "\#repository: yetiplatform/yeti-agents#{n;s/tag: .*/tag: \"${CORE}\"/}" chart/values.yaml
+          sed -i "\#repository: yetiplatform/yeti\$#{n;s/tag: .*/tag: \"${CORE}\"/}" chart/values.yaml
+          # bloomcheck stays pinned to the upstream 'dev' tag on purpose (not yet stable on releases).
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes detected"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Changes detected:"
+            git diff --stat
+          fi
+
+      - name: Align chart version with Yeti
+        if: steps.changes.outputs.changed == 'true'
+        id: bump
+        run: |
+          # Yeti release as the semver base, plus a date stamp
+          BASE="${{ steps.yeti.outputs.core }}"
+          DATE=$(date -u +'%d-%m-%Y')
+          NEW_VERSION="${BASE}-${DATE}"
+          sed -i "s/^version: .*/version: ${NEW_VERSION}/" chart/Chart.yaml
+          echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "Chart version set to: ${NEW_VERSION}"
+
+      - name: Regenerate chart README
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          # Regenerate chart/README.md (Requirements + Values tables) from the template.
+          helm-docs --chart-search-root chart
+
+      - name: Create Pull Request
+        if: steps.changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update versions to Yeti ${{ steps.yeti.outputs.core }}"
+          title: "chore: update versions to Yeti ${{ steps.yeti.outputs.core }}"
+          body: |
+            ## Automated version update
+
+            | Component | Version |
+            |-----------|---------|
+            | yeti (appVersion) | `${{ steps.yeti.outputs.core }}` |
+            | yeti-frontend | `${{ steps.yeti.outputs.core }}` |
+            | yeti-agents | `${{ steps.yeti.outputs.core }}` |
+            | Chart version | `${{ steps.bump.outputs.version }}` |
+
+            ### Dependency chart updates
+            | Dependency | Version pattern |
+            |-----------|----------------|
+            | redis | `${{ steps.deps.outputs.redis }}` |
+          branch: chore/update-versions
+          delete-branch: true
