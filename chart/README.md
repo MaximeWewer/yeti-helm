@@ -1,6 +1,6 @@
 # Yeti Helm
 
-Helm chart for [Yeti](https://yeti-platform.io/) (CTI platform: observables / TTPs / campaigns), hardened to the [intelowl-helm](https://github.com/MaximeWewer/intelowl-helm) standard.
+Helm chart for [Yeti](https://yeti-platform.io/) (CTI platform: observables / TTPs / campaigns).
 
 Derived from the [OSDFIR Yeti](https://github.com/google/osdfir-infrastructure/tree/main/charts/osdfir-infrastructure/charts/yeti) sub-chart, **isolated** and **improved**: operator-first dependencies, NetworkPolicy, PDB, hardened securityContext, `existingSecret`, schema, helm-docs.
 
@@ -98,7 +98,7 @@ helm upgrade yeti . -n cti \
 
 | Repository | Name | Version |
 |------------|------|---------|
-| oci://registry-1.docker.io/cloudpirates | redis | 0.30.4 |
+| oci://registry-1.docker.io/cloudpirates | redis | 0.30.* |
 
 ## Values
 
