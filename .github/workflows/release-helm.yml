@@ -33,8 +33,17 @@ jobs:
       - name: Get chart version
         id: chart
         run: |
+          # Re-stamp the version with the release-day date: the date in Chart.yaml
+          # was set when the update PR was opened, which may differ from today.
           VERSION=$(grep '^version:' chart/Chart.yaml | awk '{print $2}')
+          # Strip any trailing -DD-MM-YYYY date suffix to recover the semver base.
+          BASE=$(echo "$VERSION" | sed -E 's/-[0-9]{2}-[0-9]{2}-[0-9]{4}$//')
+          DATE=$(date -u +'%d-%m-%Y')
+          VERSION="${BASE}-${DATE}"
+          # Align Chart.yaml so the packaged chart metadata matches the filename.
+          sed -i "s/^version: .*/version: ${VERSION}/" chart/Chart.yaml
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: ${VERSION}"
 
       - name: Login to GitHub Container Registry
         run: |
