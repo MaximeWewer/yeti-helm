@@ -35,6 +35,14 @@
       "type": "object",
       "properties": {
         "existingSecret": { "type": "string" },
+        "secrets": {
+          "type": "object",
+          "properties": {
+            "yetiSecret": { "type": "string" },
+            "yetiUser": { "type": "string" },
+            "arangoPassword": { "type": "string" }
+          }
+        },
         "createUser": { "type": "boolean" },
         "auth": { "type": "object" },
         "system": { "type": "object", "properties": { "exportPath": { "type": "string" } } },

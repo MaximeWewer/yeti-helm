@@ -135,6 +135,16 @@ config:
   # Existing Secret with keys: token (ArangoDB root pw), yeti-secret (auth key),
   # yeti-user (initial admin password). If empty, the chart generates them.
   existingSecret: ""
+  # Inline secret values — for GitOps/ArgoCD without a secret manager.
+  # Under ArgoCD the `lookup`-based generation is unstable: lookup returns empty
+  # during the diff/dry-run, so the random fallback regenerates on every sync and
+  # the password churns. Setting these makes the secret deterministic and stable.
+  # When set, they take precedence over lookup/random (per key). Keep them out of
+  # git (e.g. ArgoCD plugin / values override), or use config.existingSecret.
+  secrets:
+    yetiSecret: ""      # -> yeti-secret  (YETI_AUTH_SECRET_KEY)
+    yetiUser: ""        # -> yeti-user    (initial 'yeti' admin password)
+    arangoPassword: ""  # -> password     (ArangoDB root, YETI_ARANGODB_PASSWORD)
   imagePullPolicy: IfNotPresent
   # Create the default 'yeti' admin user on first install (password = yeti-user secret).
   createUser: true
