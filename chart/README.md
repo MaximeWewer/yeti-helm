@@ -49,6 +49,12 @@ Secrets are generated automatically (keys `password` / `yeti-secret` / `yeti-use
 kubectl get secret -n cti yeti-secret -o jsonpath='{.data.yeti-user}' | base64 -d
 ```
 
+**Secret sourcing** (highest precedence first):
+
+1. `config.existingSecret` — reference a pre-existing Secret (ESO/Vault). Recommended in production.
+2. `config.secrets.{yetiSecret,yetiUser,arangoPassword}` — **inline** values (per key). Use when you have no secret manager, especially under **ArgoCD**: the generated-secret path relies on `lookup`, which returns empty during Argo's diff/dry-run, so the random value **churns on every sync** and passwords change. Inline values make the Secret deterministic.
+3. Auto-generated (`randAlphaNum` + `lookup` to preserve across upgrades) — the default when nothing above is set. Stable under `helm upgrade`, **unstable under ArgoCD** (see above).
+
 ## Security
 
 - Hardened `containerSecurityContext`: `allowPrivilegeEscalation: false`, `drop: [ALL]`, `privileged: false` (+ `seccompProfile: RuntimeDefault` at the pod level).
@@ -61,6 +67,8 @@ kubectl get secret -n cti yeti-secret -o jsonpath='{.data.yeti-user}' | base64 -
 
 Yeti maps `yeti.conf` onto `YETI_<SECTION>_<KEY>` environment variables. The chart exposes the structured sections via `config.*` and delegates the rest (feed API keys, MISP, creds) to `extraEnvFrom`.
 
+You can also supply a **full `yeti.conf`** via `config.yetiConf` (raw INI, à la [`yeti.conf.sample`](https://github.com/yeti-platform/yeti/blob/main/yeti.conf.sample)): it is rendered into a ConfigMap and mounted read-only at `/app/yeti.conf` on the `api`/`tasks`/`events`/`beats`/`agents` pods (`subPath`), with a checksum annotation to roll pods on change. **Env vars override the file** (`core/config.py` reads `YETI_*` first), so the chart-managed infra + secrets always win — use `config.yetiConf` for the long tail (`[tag]`, `[dfiq]`, `[datadog]`, feed sections). A partial file is fine. Prefer `extraEnvFrom` (Secret) over plaintext API keys in `config.yetiConf`.
+
 | yeti.conf section | Exposed via | Notes |
 |-------------------|-------------|-------|
 | `[rbac]` | `config.rbac.{enabled,defaultGlobalRole,defaultAcls}` | RBAC disabled upstream by default → **`enabled: true` recommended** for shared deployments |
@@ -69,7 +77,8 @@ Yeti maps `yeti.conf` onto `YETI_<SECTION>_<KEY>` environment variables. The cha
 | `[proxy]` | `config.proxy.{http,https}` | Outbound proxy for feeds (`socks5://…` / `http://…`) |
 | `[system] export_path` | `config.system.exportPath` | Local (PVC) **or** `s3://bucket/prefix` (`AWS_*` creds via `extraEnvFrom`, image with the `s3` extra) |
 | `[timesketch]` | `config.timesketch.{enabled,endpoint,existingSecret}` | Optional integration (Timesketch = backlog) |
-| `[misp]`, `[vt]`, `[otx]`, `[shodan]`, `[censys]`, `[abuseIPDB]`, `[dnsdb]`, `[github]`, `[datadog]`, … | **`extraEnvFrom`** | API keys / creds from a Secret. Yeti reads `YETI_<SECTION>_<KEY>` |
+| `[misp]`, `[vt]`, `[otx]`, `[shodan]`, `[censys]`, `[abuseIPDB]`, `[dnsdb]`, `[github]`, `[datadog]`, … | **`extraEnvFrom`** or **`config.yetiConf`** | API keys / creds. Secret via `extraEnvFrom` (preferred) or raw INI via `config.yetiConf` |
+| any section (raw file) | `config.yetiConf` | Full `yeti.conf` mounted at `/app/yeti.conf`. Overridden by chart env for managed keys |
 | `[auth]`, `[arangodb]`, `[redis]`, `[bloom]` | managed by the chart | secret/hosts/bloom already wired |
 
 Feeds + S3 example:
@@ -185,6 +194,7 @@ helm upgrade yeti . -n cti \
 | config.timesketch.existingSecret | string | `""` |  |
 | config.timesketch.passwordKey | string | `"timesketch-password"` |  |
 | config.timesketch.usernameKey | string | `"timesketch-user"` |  |
+| config.yetiConf | string | `""` |  |
 | containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |
 | containerSecurityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | containerSecurityContext.privileged | bool | `false` |  |

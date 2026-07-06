@@ -81,6 +81,30 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end }}
 
+{{/* yeti.conf ConfigMap name. */}}
+{{- define "yeti.confName" -}}{{ printf "%s-conf" (include "yeti.fullname" .) }}{{- end }}
+
+{{/* Volume mount for the user yeti.conf (subPath — replaces only /app/yeti.conf,
+     leaving the rest of the image's /app intact). Env vars still override the
+     file (see core/config.py), so chart-managed infra/secret settings win. */}}
+{{- define "yeti.confVolumeMount" -}}
+{{- if .Values.config.yetiConf }}
+- name: yeti-conf
+  mountPath: /app/yeti.conf
+  subPath: yeti.conf
+  readOnly: true
+{{- end }}
+{{- end }}
+
+{{/* Volume backing the yeti.conf mount. */}}
+{{- define "yeti.confVolume" -}}
+{{- if .Values.config.yetiConf }}
+- name: yeti-conf
+  configMap:
+    name: {{ include "yeti.confName" . }}
+{{- end }}
+{{- end }}
+
 {{/* Full image ref helper: takes a dict {repository, tag, digest}. */}}
 {{- define "yeti.image" -}}
 {{- $img := .img -}}

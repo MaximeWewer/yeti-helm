@@ -24,6 +24,10 @@ spec:
       labels:
         app.kubernetes.io/component: {{ .name }}
         {{- include "yeti.selectorLabels" $ctx | nindent 8 }}
+      {{- if $ctx.Values.config.yetiConf }}
+      annotations:
+        checksum/yeti-conf: {{ $ctx.Values.config.yetiConf | sha256sum }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "yeti.serviceAccountName" $ctx }}
       automountServiceAccountToken: {{ $ctx.Values.serviceAccount.automountServiceAccountToken }}
@@ -50,16 +54,22 @@ spec:
           {{- include "yeti.envFrom" $ctx | nindent 10 }}
           resources:
             {{- toYaml .resources | nindent 12 }}
-          {{- if .exports }}
+          {{- if or .exports $ctx.Values.config.yetiConf }}
           volumeMounts:
+            {{- if .exports }}
             - name: exports
               mountPath: {{ $ctx.Values.exports.mountPath }}
+            {{- end }}
+            {{- include "yeti.confVolumeMount" $ctx | nindent 12 }}
           {{- end }}
-      {{- if .exports }}
+      {{- if or .exports $ctx.Values.config.yetiConf }}
       volumes:
+        {{- if .exports }}
         - name: exports
           persistentVolumeClaim:
             claimName: {{ $ctx.Values.exports.existingClaim | default (printf "%s-exports" (include "yeti.fullname" $ctx)) }}
+        {{- end }}
+        {{- include "yeti.confVolume" $ctx | nindent 8 }}
       {{- end }}
       {{- with .nodeSelector }}
       nodeSelector:

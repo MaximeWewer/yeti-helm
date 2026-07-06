@@ -146,6 +146,28 @@ config:
     yetiUser: ""        # -> yeti-user    (initial 'yeti' admin password)
     arangoPassword: ""  # -> password     (ArangoDB root, YETI_ARANGODB_PASSWORD)
   imagePullPolicy: IfNotPresent
+  # Raw yeti.conf (INI). When set, it is rendered into a ConfigMap and mounted at
+  # /app/yeti.conf on the yeti app workloads (api/tasks/events/beats/agents),
+  # letting you configure Yeti exactly like the upstream file:
+  #   https://github.com/yeti-platform/yeti/blob/main/yeti.conf.sample
+  # A partial file is fine: any key not present falls back to the chart's YETI_*
+  # env / defaults. NOTE: env vars OVERRIDE the file (core/config.py), so the
+  # chart-managed infra + secret settings (arangodb/redis hosts, auth secret,
+  # passwords, bloom/agents wiring...) always win over this file — use it for the
+  # long tail (feeds: [vt]/[otx]/[shodan]/[misp_1]..., [tag], [dfiq], [datadog]).
+  # Prefer extraEnvFrom for API keys you want kept in a Secret.
+  yetiConf: ""
+  # Example:
+  #   yetiConf: |
+  #     [tag]
+  #     default_tag_expiration = 90
+  #     [vt]
+  #     key = YOUR_VT_KEY
+  #     [misp]
+  #     instances = misp_1
+  #     [misp_1]
+  #     url = https://misp.example.com
+  #     key = MISP_AUTH_KEY
   # Create the default 'yeti' admin user on first install (password = yeti-user secret).
   createUser: true
   # Init container with nslookup/wget to gate startup on deps.

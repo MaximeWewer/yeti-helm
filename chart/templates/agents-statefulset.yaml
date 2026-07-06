@@ -18,6 +18,10 @@ spec:
       labels:
         app.kubernetes.io/component: agents
         {{- include "yeti.selectorLabels" . | nindent 8 }}
+      {{- if .Values.config.yetiConf }}
+      annotations:
+        checksum/yeti-conf: {{ .Values.config.yetiConf | sha256sum }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "yeti.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
@@ -51,6 +55,7 @@ spec:
           volumeMounts:
             - name: data
               mountPath: {{ dir .Values.agents.dbPath }}
+            {{- include "yeti.confVolumeMount" . | nindent 12 }}
       {{- with .Values.agents.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -63,10 +68,13 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if not .Values.agents.persistence.enabled }}
+      {{- if or (not .Values.agents.persistence.enabled) .Values.config.yetiConf }}
       volumes:
+        {{- if not .Values.agents.persistence.enabled }}
         - name: data
           emptyDir: {}
+        {{- end }}
+        {{- include "yeti.confVolume" . | nindent 8 }}
       {{- end }}
   {{- if .Values.agents.persistence.enabled }}
   volumeClaimTemplates:

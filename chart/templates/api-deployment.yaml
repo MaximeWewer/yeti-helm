@@ -16,6 +16,10 @@ spec:
       labels:
         app.kubernetes.io/component: api
         {{- include "yeti.selectorLabels" . | nindent 8 }}
+      {{- if .Values.config.yetiConf }}
+      annotations:
+        checksum/yeti-conf: {{ .Values.config.yetiConf | sha256sum }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "yeti.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
@@ -67,17 +71,23 @@ spec:
             failureThreshold: 6
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
+          {{- if or .Values.exports.enabled .Values.config.yetiConf }}
           volumeMounts:
             {{- if .Values.exports.enabled }}
             - name: exports
               mountPath: {{ .Values.exports.mountPath }}
             {{- end }}
+            {{- include "yeti.confVolumeMount" . | nindent 12 }}
+          {{- end }}
+      {{- if or .Values.exports.enabled .Values.config.yetiConf }}
       volumes:
         {{- if .Values.exports.enabled }}
         - name: exports
           persistentVolumeClaim:
             claimName: {{ .Values.exports.existingClaim | default (printf "%s-exports" (include "yeti.fullname" .)) }}
         {{- end }}
+        {{- include "yeti.confVolume" . | nindent 8 }}
+      {{- end }}
       {{- with .Values.api.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
