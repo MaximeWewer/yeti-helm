@@ -109,7 +109,7 @@ helm upgrade yeti . -n cti \
 | agents.enabled | bool | `false` |  |
 | agents.image.digest | string | `""` |  |
 | agents.image.repository | string | `"yetiplatform/yeti-agents"` |  |
-| agents.image.tag | string | `"2.5.0"` |  |
+| agents.image.tag | string | `"2.5.1"` |  |
 | agents.nodeSelector | object | `{}` |  |
 | agents.persistence.accessModes[0] | string | `"ReadWriteOnce"` |  |
 | agents.persistence.enabled | bool | `true` |  |
@@ -121,7 +121,7 @@ helm upgrade yeti . -n cti \
 | api.affinity | object | `{}` |  |
 | api.image.digest | string | `""` |  |
 | api.image.repository | string | `"yetiplatform/yeti"` |  |
-| api.image.tag | string | `"2.5.0"` |  |
+| api.image.tag | string | `"2.5.1"` |  |
 | api.nodeSelector | object | `{}` |  |
 | api.replicas | int | `1` |  |
 | api.resources | object | `{}` |  |
@@ -176,6 +176,9 @@ helm upgrade yeti . -n cti \
 | config.rbac.defaultAcls | string | `"All users"` |  |
 | config.rbac.defaultGlobalRole | string | `"writer"` |  |
 | config.rbac.enabled | bool | `false` |  |
+| config.secrets.arangoPassword | string | `""` |  |
+| config.secrets.yetiSecret | string | `""` |  |
+| config.secrets.yetiUser | string | `""` |  |
 | config.system.exportPath | string | `"/opt/yeti/exports"` |  |
 | config.timesketch.enabled | bool | `false` |  |
 | config.timesketch.endpoint | string | `""` |  |
@@ -206,7 +209,7 @@ helm upgrade yeti . -n cti \
 | frontend.containerPort | int | `8080` |  |
 | frontend.image.digest | string | `""` |  |
 | frontend.image.repository | string | `"yetiplatform/yeti-frontend"` |  |
-| frontend.image.tag | string | `"2.5.0"` |  |
+| frontend.image.tag | string | `"2.5.1"` |  |
 | frontend.nodeSelector | object | `{}` |  |
 | frontend.replicas | int | `1` |  |
 | frontend.resources | object | `{}` |  |
