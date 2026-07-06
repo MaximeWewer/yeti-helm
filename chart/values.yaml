@@ -15,7 +15,7 @@ imagePullSecrets: []
 frontend:
   image:
     repository: yetiplatform/yeti-frontend
-    tag: "2.5.0"
+    tag: "2.5.1"
     digest: ""
   replicas: 1
   containerPort: 8080
@@ -43,7 +43,7 @@ frontend:
 api:
   image:
     repository: yetiplatform/yeti
-    tag: "2.5.0"
+    tag: "2.5.1"
     digest: ""
   replicas: 1
   service:
@@ -84,7 +84,7 @@ agents:
   enabled: false
   image:
     repository: yetiplatform/yeti-agents
-    tag: "2.5.0"
+    tag: "2.5.1"
     digest: ""
   service:
     port: 8888
