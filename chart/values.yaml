@@ -142,26 +142,27 @@ config:
   # When set, they take precedence over lookup/random (per key). Keep them out of
   # git (e.g. ArgoCD plugin / values override), or use config.existingSecret.
   secrets:
-    yetiSecret: ""      # -> yeti-secret  (YETI_AUTH_SECRET_KEY)
-    yetiUser: ""        # -> yeti-user    (initial 'yeti' admin password)
-    arangoPassword: ""  # -> password     (ArangoDB root, YETI_ARANGODB_PASSWORD)
+    yetiSecret: "" # -> yeti-secret  (YETI_AUTH_SECRET_KEY)
+    yetiUser: "" # -> yeti-user    (initial 'yeti' admin password)
+    arangoPassword: "" # -> password     (ArangoDB root, YETI_ARANGODB_PASSWORD)
   imagePullPolicy: IfNotPresent
   # Raw yeti.conf (INI, à la https://github.com/yeti-platform/yeti/blob/main/yeti.conf.sample).
   # When set, an initContainer MERGES it (key-by-key, via Python's configparser —
   # the same parser Yeti uses) over a base yeti.conf generated from config.*, and
   # mounts the result at /app/yeti.conf on api/tasks/events/beats/agents.
   #
-  # Precedence for the mergeable sections ([auth] [rbac] [events] [proxy]):
-  #   config.yetiConf  >  config.*  (this file overrides the structured values)
-  # The chart stops emitting the YETI_* env for those sections when yetiConf is
+  # The base covers ALL core sections, generated from config.*: [system] [auth]
+  # [rbac] [tag] [arangodb] [redis] [bloom] [events] [agents] [chromadb] [proxy].
+  # Precedence: config.yetiConf > config.* (this file overrides the structured
+  # values). The chart stops emitting the YETI_* env for these when yetiConf is
   # set, so the merged file is authoritative. Any extra section you add (feeds
-  # [vt]/[otx]/[misp_1]..., [tag], [dfiq], [github], [datadog], ...) is included
-  # as-is. A partial file is fine — omitted keys keep the config.* base values.
+  # [vt]/[otx]/[misp_1]..., [dfiq], [github], [datadog], ...) is merged in as-is.
+  # A partial file is fine — omitted keys keep the config.* base values.
   #
-  # STILL env-managed and NOT overridable here (infra + secrets — dynamic or must
-  # not live in a ConfigMap): [system] export_path, [arangodb], [redis], [bloom],
-  # [agents], auth SECRET_KEY / user password, [timesketch] & [oidc] credentials.
-  # Prefer extraEnvFrom (Secret) for API keys rather than plaintext in this file.
+  # SECRETS stay env-managed and always win — NOT overridable here (must not live
+  # in a ConfigMap): ArangoDB password, auth SECRET_KEY, user password,
+  # [timesketch] & [oidc] credentials. Prefer extraEnvFrom (Secret) for API keys
+  # rather than plaintext in this file.
   yetiConf: ""
   # Example — override a managed section AND add feeds:
   #   yetiConf: |
@@ -187,20 +188,35 @@ config:
     enabled: true
     accessTokenExpireMinutes: 10000
     browserTokenExpireMinutes: 43200
-  # [system] settings.
+  # [system] settings — rendered into the generated base yeti.conf (essential
+  # block, always present; overridable via config.yetiConf). webroot is derived
+  # from ingress when enabled.
   system:
     # Export storage path. Local path (PVC) OR an S3 URI "s3://bucket/prefix"
     # (provide AWS_* credentials via extraEnvFrom; requires the s3 extra in the image).
     exportPath: "/opt/yeti/exports"
+    # Yeti plugins directory (relative to /app).
+    pluginsPath: "./plugins"
+    # User-activity + audit log paths.
+    logging: "/var/log/yeti_user_activity.log"
+    auditLogfile: "/var/log/yeti_audit.log"
+    # Export templates dir (*.jinja2). Must be shared by api + tasks.
+    templateDir: "/opt/yeti/templates"
   # [rbac] Role-based access control. Disabled upstream by default (all users full
   # access). Recommended ON for shared/hardened deployments.
   rbac:
     enabled: false
-    defaultGlobalRole: "writer"   # writer | reader
-    defaultAcls: "All users"      # "All users" | "none"
+    defaultGlobalRole: "writer" # writer | reader
+    defaultAcls: "All users" # "All users" | "none"
+  # [tag] tag settings. Empty = tags never expire (upstream default). Value in days.
+  tag:
+    defaultExpiration: ""
+  # [chromadb] local storage path (embeddings store).
+  chromadb:
+    path: "/data/chromadb"
   # [events] events worker tuning.
   events:
-    memoryLimit: 64               # MiB for the events queue
+    memoryLimit: 64 # MiB for the events queue
     keepRatio: 0.9
     consumersConcurrency: 2
   # [proxy] outbound proxy for feed fetching (socks5://user:pass@host:port or http://).
@@ -217,7 +233,7 @@ config:
   # OIDC (Yeti supports OIDC via discovery URL; default config targets Google).
   oidc:
     enabled: false
-    discoveryUrl: "https://accounts.google.com/.well-known/openid-configuration"
+    discoveryUrl: "https://example.com/.well-known/openid-configuration"
     allowedExtraAudiences: ""
     # Secret with keys: client-id, client-secret.
     existingSecret: ""

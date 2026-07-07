@@ -84,12 +84,23 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* yeti.conf ConfigMap name. */}}
 {{- define "yeti.confName" -}}{{ printf "%s-conf" (include "yeti.fullname" .) }}{{- end }}
 
-{{/* Chart-generated base yeti.conf: the tunable sections derived from config.*.
-     These are the sections whose env is suppressed when config.yetiConf is set
-     (see _env.tpl), so the file becomes their source of truth. The user overlay
-     (config.yetiConf) is merged ON TOP of this at runtime (overlay wins). Infra
-     + secrets are NOT here — they stay as env and always win. */}}
+{{/* Chart-generated base yeti.conf: the core sections derived from config.* —
+     [system]/[auth]/[rbac]/[tag]/[arangodb]/[redis]/[bloom]/[events]/[agents]/
+     [chromadb]/[proxy]. Their env is suppressed when config.yetiConf is set (see
+     _env.tpl) so this file is their source of truth, and the user overlay
+     (config.yetiConf) is merged ON TOP at runtime (overlay wins). Secrets are NOT
+     here — arango password, auth SECRET_KEY, user password, timesketch/oidc creds
+     stay as env and always win. Feeds/integrations are left to the overlay. */}}
 {{- define "yeti.baseConf" -}}
+[system]
+export_path = {{ .Values.config.system.exportPath }}
+plugins_path = {{ .Values.config.system.pluginsPath }}
+logging = {{ .Values.config.system.logging }}
+audit_logfile = {{ .Values.config.system.auditLogfile }}
+template_dir = {{ .Values.config.system.templateDir }}
+{{- if .Values.ingress.enabled }}
+webroot = {{ printf "https://%s" .Values.ingress.host }}
+{{- end }}
 [auth]
 enabled = {{ .Values.config.auth.enabled | ternary "True" "False" }}
 algorithm = HS256
@@ -99,10 +110,36 @@ browser_token_expire_minutes = {{ .Values.config.auth.browserTokenExpireMinutes 
 enabled = {{ .Values.config.rbac.enabled | ternary "True" "False" }}
 default_global_role = {{ .Values.config.rbac.defaultGlobalRole }}
 default_acls = {{ .Values.config.rbac.defaultAcls }}
+{{- with .Values.config.tag.defaultExpiration }}
+[tag]
+default_tag_expiration = {{ . }}
+{{- end }}
+[arangodb]
+host = {{ include "yeti.arangodb.fullname" . }}
+port = 8529
+username = root
+database = {{ .Values.arangodb.database }}
+[redis]
+host = {{ include "yeti.redis.host" . }}
+port = {{ .Values.externalRedis.port | default 6379 }}
+database = 0
+{{- if .Values.bloomcheck.enabled }}
+[bloom]
+bloomcheck_endpoint = http://{{ include "yeti.bloomcheck.fullname" . }}:{{ .Values.bloomcheck.service.port }}
+filters_dir = /opt/yeti/bloomfilters
+{{- end }}
 [events]
 memory_limit = {{ .Values.config.events.memoryLimit }}
 keep_ratio = {{ .Values.config.events.keepRatio }}
 consumers_concurrency = {{ .Values.config.events.consumersConcurrency }}
+[agents]
+enabled = {{ .Values.agents.enabled | ternary "True" "False" }}
+{{- if .Values.agents.enabled }}
+http_root = http://{{ include "yeti.agents.fullname" . }}:{{ .Values.agents.service.port }}
+websocket_root = ws://{{ include "yeti.agents.fullname" . }}:{{ .Values.agents.service.port }}
+{{- end }}
+[chromadb]
+path = {{ .Values.config.chromadb.path }}
 [proxy]
 http = {{ .Values.config.proxy.http }}
 https = {{ .Values.config.proxy.https }}

@@ -5,8 +5,57 @@ Yeti reads YETI_* env vars (see yeti.conf.sample).
 {{- define "yeti.envs" -}}
 - name: YETI_K8S_RUNTIME
   value: "true"
+{{- /* Secrets + the initial user password are ALWAYS injected as env (they must
+       not live in the ConfigMap) and always win over the merged file. */}}
+- name: YETI_ARANGODB_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "yeti.arangoSecretName" . }}
+      key: password
+- name: YETI_AUTH_SECRET_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "yeti.secretName" . }}
+      key: yeti-secret
+- name: YETI_USER_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "yeti.secretName" . }}
+      key: yeti-user
+{{- /* Core (non-secret) sections — [system]/[auth]/[rbac]/[tag]/[arangodb]/[redis]/
+       [bloom]/[events]/[agents]/[chromadb]/[proxy]. Emitted as env ONLY without
+       config.yetiConf; when yetiConf is set these come from the merged base
+       yeti.conf (generated from config.*, see yeti.baseConf), which env would
+       otherwise always override. */}}
+{{- if not .Values.config.yetiConf }}
 - name: YETI_SYSTEM_PLUGINS_PATH
-  value: "./plugins"
+  value: {{ .Values.config.system.pluginsPath | quote }}
+- name: YETI_SYSTEM_EXPORT_PATH
+  value: {{ .Values.config.system.exportPath | quote }}
+{{- if .Values.ingress.enabled }}
+- name: YETI_SYSTEM_WEBROOT
+  value: {{ printf "https://%s" .Values.ingress.host | quote }}
+{{- end }}
+- name: YETI_AUTH_ALGORITHM
+  value: "HS256"
+- name: YETI_AUTH_ACCESS_TOKEN_EXPIRE_MINUTES
+  value: {{ .Values.config.auth.accessTokenExpireMinutes | quote }}
+- name: YETI_AUTH_BROWSER_TOKEN_EXPIRE_MINUTES
+  value: {{ .Values.config.auth.browserTokenExpireMinutes | quote }}
+- name: YETI_AUTH_ENABLED
+  value: {{ .Values.config.auth.enabled | quote }}
+- name: YETI_RBAC_ENABLED
+  value: {{ .Values.config.rbac.enabled | quote }}
+{{- if .Values.config.rbac.enabled }}
+- name: YETI_RBAC_DEFAULT_GLOBAL_ROLE
+  value: {{ .Values.config.rbac.defaultGlobalRole | quote }}
+- name: YETI_RBAC_DEFAULT_ACLS
+  value: {{ .Values.config.rbac.defaultAcls | quote }}
+{{- end }}
+{{- with .Values.config.tag.defaultExpiration }}
+- name: YETI_TAG_DEFAULT_TAG_EXPIRATION
+  value: {{ . | quote }}
+{{- end }}
 {{- if .Values.bloomcheck.enabled }}
 - name: YETI_BLOOM_BLOOMCHECK_ENDPOINT
   value: "http://{{ include "yeti.bloomcheck.fullname" . }}:{{ .Values.bloomcheck.service.port }}"
@@ -27,36 +76,12 @@ Yeti reads YETI_* env vars (see yeti.conf.sample).
   value: {{ .Values.arangodb.database | quote }}
 - name: YETI_ARANGODB_USERNAME
   value: "root"
-- name: YETI_ARANGODB_PASSWORD
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "yeti.arangoSecretName" . }}
-      key: password
-- name: YETI_AUTH_SECRET_KEY
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "yeti.secretName" . }}
-      key: yeti-secret
-{{- /* Tunable [auth] keys: emitted as env only when NOT using config.yetiConf.
-       With yetiConf, these come from the merged file (base <- config.*, overridable
-       by the overlay) — env would otherwise always win over the file. */}}
-{{- if not .Values.config.yetiConf }}
-- name: YETI_AUTH_ALGORITHM
-  value: "HS256"
-- name: YETI_AUTH_ACCESS_TOKEN_EXPIRE_MINUTES
-  value: {{ .Values.config.auth.accessTokenExpireMinutes | quote }}
-- name: YETI_AUTH_BROWSER_TOKEN_EXPIRE_MINUTES
-  value: {{ .Values.config.auth.browserTokenExpireMinutes | quote }}
-- name: YETI_AUTH_ENABLED
-  value: {{ .Values.config.auth.enabled | quote }}
-{{- end }}
-- name: YETI_USER_PASSWORD
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "yeti.secretName" . }}
-      key: yeti-user
-- name: YETI_SYSTEM_EXPORT_PATH
-  value: {{ .Values.config.system.exportPath | quote }}
+- name: YETI_EVENTS_MEMORY_LIMIT
+  value: {{ .Values.config.events.memoryLimit | quote }}
+- name: YETI_EVENTS_KEEP_RATIO
+  value: {{ .Values.config.events.keepRatio | quote }}
+- name: YETI_EVENTS_CONSUMERS_CONCURRENCY
+  value: {{ .Values.config.events.consumersConcurrency | quote }}
 - name: YETI_AGENTS_ENABLED
   value: {{ .Values.agents.enabled | quote }}
 {{- if .Values.agents.enabled }}
@@ -65,23 +90,8 @@ Yeti reads YETI_* env vars (see yeti.conf.sample).
 - name: YETI_AGENTS_WEBSOCKET_ROOT
   value: "ws://{{ include "yeti.agents.fullname" . }}:{{ .Values.agents.service.port }}"
 {{- end }}
-{{- /* Tunable [rbac] / [events] / [proxy]: env only without config.yetiConf
-       (else sourced from the merged file). */}}
-{{- if not .Values.config.yetiConf }}
-- name: YETI_RBAC_ENABLED
-  value: {{ .Values.config.rbac.enabled | quote }}
-{{- if .Values.config.rbac.enabled }}
-- name: YETI_RBAC_DEFAULT_GLOBAL_ROLE
-  value: {{ .Values.config.rbac.defaultGlobalRole | quote }}
-- name: YETI_RBAC_DEFAULT_ACLS
-  value: {{ .Values.config.rbac.defaultAcls | quote }}
-{{- end }}
-- name: YETI_EVENTS_MEMORY_LIMIT
-  value: {{ .Values.config.events.memoryLimit | quote }}
-- name: YETI_EVENTS_KEEP_RATIO
-  value: {{ .Values.config.events.keepRatio | quote }}
-- name: YETI_EVENTS_CONSUMERS_CONCURRENCY
-  value: {{ .Values.config.events.consumersConcurrency | quote }}
+- name: YETI_CHROMADB_PATH
+  value: {{ .Values.config.chromadb.path | quote }}
 {{- with .Values.config.proxy.http }}
 - name: YETI_PROXY_HTTP
   value: {{ . | quote }}
@@ -123,10 +133,6 @@ Yeti reads YETI_* env vars (see yeti.conf.sample).
 {{- with .Values.config.oidc.allowedExtraAudiences }}
 - name: YETI_AUTH_OIDC_EXTRA_CLIENT_AUDIENCES
   value: {{ . | quote }}
-{{- end }}
-{{- if .Values.ingress.enabled }}
-- name: YETI_SYSTEM_WEBROOT
-  value: {{ printf "https://%s" .Values.ingress.host | quote }}
 {{- end }}
 {{- end }}
 {{- with .Values.extraEnv }}

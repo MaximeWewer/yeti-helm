@@ -47,7 +47,16 @@
         "confMergeImage": { "type": "string" },
         "createUser": { "type": "boolean" },
         "auth": { "type": "object" },
-        "system": { "type": "object", "properties": { "exportPath": { "type": "string" } } },
+        "system": {
+          "type": "object",
+          "properties": {
+            "exportPath": { "type": "string" },
+            "pluginsPath": { "type": "string" },
+            "logging": { "type": "string" },
+            "auditLogfile": { "type": "string" },
+            "templateDir": { "type": "string" }
+          }
+        },
         "rbac": {
           "type": "object",
           "properties": {
@@ -56,6 +65,8 @@
             "defaultAcls": { "type": "string" }
           }
         },
+        "tag": { "type": "object", "properties": { "defaultExpiration": { "type": "string" } } },
+        "chromadb": { "type": "object", "properties": { "path": { "type": "string" } } },
         "events": { "type": "object" },
         "proxy": {
           "type": "object",
