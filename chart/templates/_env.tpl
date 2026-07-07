@@ -37,6 +37,10 @@ Yeti reads YETI_* env vars (see yeti.conf.sample).
     secretKeyRef:
       name: {{ include "yeti.secretName" . }}
       key: yeti-secret
+{{- /* Tunable [auth] keys: emitted as env only when NOT using config.yetiConf.
+       With yetiConf, these come from the merged file (base <- config.*, overridable
+       by the overlay) — env would otherwise always win over the file. */}}
+{{- if not .Values.config.yetiConf }}
 - name: YETI_AUTH_ALGORITHM
   value: "HS256"
 - name: YETI_AUTH_ACCESS_TOKEN_EXPIRE_MINUTES
@@ -45,6 +49,7 @@ Yeti reads YETI_* env vars (see yeti.conf.sample).
   value: {{ .Values.config.auth.browserTokenExpireMinutes | quote }}
 - name: YETI_AUTH_ENABLED
   value: {{ .Values.config.auth.enabled | quote }}
+{{- end }}
 - name: YETI_USER_PASSWORD
   valueFrom:
     secretKeyRef:
@@ -60,6 +65,9 @@ Yeti reads YETI_* env vars (see yeti.conf.sample).
 - name: YETI_AGENTS_WEBSOCKET_ROOT
   value: "ws://{{ include "yeti.agents.fullname" . }}:{{ .Values.agents.service.port }}"
 {{- end }}
+{{- /* Tunable [rbac] / [events] / [proxy]: env only without config.yetiConf
+       (else sourced from the merged file). */}}
+{{- if not .Values.config.yetiConf }}
 - name: YETI_RBAC_ENABLED
   value: {{ .Values.config.rbac.enabled | quote }}
 {{- if .Values.config.rbac.enabled }}
@@ -81,6 +89,7 @@ Yeti reads YETI_* env vars (see yeti.conf.sample).
 {{- with .Values.config.proxy.https }}
 - name: YETI_PROXY_HTTPS
   value: {{ . | quote }}
+{{- end }}
 {{- end }}
 {{- if .Values.config.timesketch.enabled }}
 - name: YETI_TIMESKETCH_ENDPOINT

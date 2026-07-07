@@ -84,9 +84,64 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* yeti.conf ConfigMap name. */}}
 {{- define "yeti.confName" -}}{{ printf "%s-conf" (include "yeti.fullname" .) }}{{- end }}
 
-{{/* Volume mount for the user yeti.conf (subPath — replaces only /app/yeti.conf,
-     leaving the rest of the image's /app intact). Env vars still override the
-     file (see core/config.py), so chart-managed infra/secret settings win. */}}
+{{/* Chart-generated base yeti.conf: the tunable sections derived from config.*.
+     These are the sections whose env is suppressed when config.yetiConf is set
+     (see _env.tpl), so the file becomes their source of truth. The user overlay
+     (config.yetiConf) is merged ON TOP of this at runtime (overlay wins). Infra
+     + secrets are NOT here — they stay as env and always win. */}}
+{{- define "yeti.baseConf" -}}
+[auth]
+enabled = {{ .Values.config.auth.enabled | ternary "True" "False" }}
+algorithm = HS256
+access_token_expire_minutes = {{ .Values.config.auth.accessTokenExpireMinutes }}
+browser_token_expire_minutes = {{ .Values.config.auth.browserTokenExpireMinutes }}
+[rbac]
+enabled = {{ .Values.config.rbac.enabled | ternary "True" "False" }}
+default_global_role = {{ .Values.config.rbac.defaultGlobalRole }}
+default_acls = {{ .Values.config.rbac.defaultAcls }}
+[events]
+memory_limit = {{ .Values.config.events.memoryLimit }}
+keep_ratio = {{ .Values.config.events.keepRatio }}
+consumers_concurrency = {{ .Values.config.events.consumersConcurrency }}
+[proxy]
+http = {{ .Values.config.proxy.http }}
+https = {{ .Values.config.proxy.https }}
+{{- end }}
+
+{{/* Roll pods when either the generated base or the user overlay changes. */}}
+{{- define "yeti.confChecksum" -}}
+{{- printf "%s|%s" (include "yeti.baseConf" .) .Values.config.yetiConf | sha256sum -}}
+{{- end }}
+
+{{/* initContainer: key-level merge of base.conf <- overlay.conf using Python's
+     configparser (same parser Yeti uses), writing the result to the shared
+     emptyDir. read([base, overlay]) merges per key with overlay winning; strict
+     duplicate checks are per-source, so overlapping sections are fine. */}}
+{{- define "yeti.confInitContainer" -}}
+{{- if .Values.config.yetiConf }}
+- name: merge-yeti-conf
+  image: {{ .Values.config.confMergeImage | quote }}
+  imagePullPolicy: {{ .Values.image.pullPolicy }}
+  command: ["python3", "-c"]
+  args:
+    - |
+      import configparser
+      c = configparser.ConfigParser(allow_no_value=True)
+      c.read(["/conf-src/base.conf", "/conf-src/overlay.conf"], encoding="utf-8")
+      with open("/conf/yeti.conf", "w", encoding="utf-8") as f:
+          c.write(f)
+  securityContext:
+    {{- toYaml .Values.containerSecurityContext | nindent 4 }}
+  volumeMounts:
+    - name: yeti-conf-src
+      mountPath: /conf-src
+    - name: yeti-conf
+      mountPath: /conf
+{{- end }}
+{{- end }}
+
+{{/* Volume mount of the MERGED yeti.conf onto the app container (subPath keeps
+     the rest of the image's /app intact). */}}
 {{- define "yeti.confVolumeMount" -}}
 {{- if .Values.config.yetiConf }}
 - name: yeti-conf
@@ -96,10 +151,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- end }}
 
-{{/* Volume backing the yeti.conf mount. */}}
+{{/* Volumes: the source ConfigMap (base + overlay) and the emptyDir that the
+     init container writes the merged file into. */}}
 {{- define "yeti.confVolume" -}}
 {{- if .Values.config.yetiConf }}
 - name: yeti-conf
+  emptyDir: {}
+- name: yeti-conf-src
   configMap:
     name: {{ include "yeti.confName" . }}
 {{- end }}

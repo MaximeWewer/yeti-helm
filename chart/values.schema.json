@@ -44,6 +44,7 @@
           }
         },
         "yetiConf": { "type": "string" },
+        "confMergeImage": { "type": "string" },
         "createUser": { "type": "boolean" },
         "auth": { "type": "object" },
         "system": { "type": "object", "properties": { "exportPath": { "type": "string" } } },

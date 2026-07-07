@@ -146,19 +146,27 @@ config:
     yetiUser: ""        # -> yeti-user    (initial 'yeti' admin password)
     arangoPassword: ""  # -> password     (ArangoDB root, YETI_ARANGODB_PASSWORD)
   imagePullPolicy: IfNotPresent
-  # Raw yeti.conf (INI). When set, it is rendered into a ConfigMap and mounted at
-  # /app/yeti.conf on the yeti app workloads (api/tasks/events/beats/agents),
-  # letting you configure Yeti exactly like the upstream file:
-  #   https://github.com/yeti-platform/yeti/blob/main/yeti.conf.sample
-  # A partial file is fine: any key not present falls back to the chart's YETI_*
-  # env / defaults. NOTE: env vars OVERRIDE the file (core/config.py), so the
-  # chart-managed infra + secret settings (arangodb/redis hosts, auth secret,
-  # passwords, bloom/agents wiring...) always win over this file — use it for the
-  # long tail (feeds: [vt]/[otx]/[shodan]/[misp_1]..., [tag], [dfiq], [datadog]).
-  # Prefer extraEnvFrom for API keys you want kept in a Secret.
+  # Raw yeti.conf (INI, à la https://github.com/yeti-platform/yeti/blob/main/yeti.conf.sample).
+  # When set, an initContainer MERGES it (key-by-key, via Python's configparser —
+  # the same parser Yeti uses) over a base yeti.conf generated from config.*, and
+  # mounts the result at /app/yeti.conf on api/tasks/events/beats/agents.
+  #
+  # Precedence for the mergeable sections ([auth] [rbac] [events] [proxy]):
+  #   config.yetiConf  >  config.*  (this file overrides the structured values)
+  # The chart stops emitting the YETI_* env for those sections when yetiConf is
+  # set, so the merged file is authoritative. Any extra section you add (feeds
+  # [vt]/[otx]/[misp_1]..., [tag], [dfiq], [github], [datadog], ...) is included
+  # as-is. A partial file is fine — omitted keys keep the config.* base values.
+  #
+  # STILL env-managed and NOT overridable here (infra + secrets — dynamic or must
+  # not live in a ConfigMap): [system] export_path, [arangodb], [redis], [bloom],
+  # [agents], auth SECRET_KEY / user password, [timesketch] & [oidc] credentials.
+  # Prefer extraEnvFrom (Secret) for API keys rather than plaintext in this file.
   yetiConf: ""
-  # Example:
+  # Example — override a managed section AND add feeds:
   #   yetiConf: |
+  #     [rbac]
+  #     enabled = True
   #     [tag]
   #     default_tag_expiration = 90
   #     [vt]
@@ -168,6 +176,8 @@ config:
   #     [misp_1]
   #     url = https://misp.example.com
   #     key = MISP_AUTH_KEY
+  # Image used by the merge-yeti-conf initContainer (needs Python stdlib only).
+  confMergeImage: "python:3.14-alpine"
   # Create the default 'yeti' admin user on first install (password = yeti-user secret).
   createUser: true
   # Init container with nslookup/wget to gate startup on deps.

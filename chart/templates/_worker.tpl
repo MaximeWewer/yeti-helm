@@ -26,7 +26,7 @@ spec:
         {{- include "yeti.selectorLabels" $ctx | nindent 8 }}
       {{- if $ctx.Values.config.yetiConf }}
       annotations:
-        checksum/yeti-conf: {{ $ctx.Values.config.yetiConf | sha256sum }}
+        checksum/yeti-conf: {{ include "yeti.confChecksum" $ctx }}
       {{- end }}
     spec:
       serviceAccountName: {{ include "yeti.serviceAccountName" $ctx }}
@@ -38,6 +38,7 @@ spec:
       securityContext:
         {{- toYaml $ctx.Values.podSecurityContext | nindent 8 }}
       initContainers:
+        {{- include "yeti.confInitContainer" $ctx | nindent 8 }}
         {{- include "yeti.initWaitDeps" $ctx | nindent 8 }}
         {{- if .waitApi }}
         {{- include "yeti.initWaitApi" $ctx | nindent 8 }}

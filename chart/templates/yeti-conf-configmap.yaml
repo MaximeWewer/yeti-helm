@@ -1,13 +1,17 @@
-{{- with .Values.config.yetiConf }}
-# User-supplied yeti.conf (INI, see yeti.conf.sample). Mounted at /app/yeti.conf
-# on the yeti app workloads (api/tasks/events/beats/agents) via subPath.
+{{- if .Values.config.yetiConf }}
+# Source for the merged /app/yeti.conf. The merge-yeti-conf initContainer reads
+# both keys (base first, then overlay) so overlay values win per key.
+#   base.conf    -> tunable sections generated from config.* (auth/rbac/events/proxy)
+#   overlay.conf -> user-supplied config.yetiConf (raw INI, à la yeti.conf.sample)
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "yeti.confName" $ }}
+  name: {{ include "yeti.confName" . }}
   labels:
-    {{- include "yeti.labels" $ | nindent 4 }}
+    {{- include "yeti.labels" . | nindent 4 }}
 data:
-  yeti.conf: |
-{{ . | indent 4 }}
+  base.conf: |
+{{ include "yeti.baseConf" . | indent 4 }}
+  overlay.conf: |
+{{ .Values.config.yetiConf | indent 4 }}
 {{- end }}

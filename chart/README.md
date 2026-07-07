@@ -67,7 +67,11 @@ kubectl get secret -n cti yeti-secret -o jsonpath='{.data.yeti-user}' | base64 -
 
 Yeti maps `yeti.conf` onto `YETI_<SECTION>_<KEY>` environment variables. The chart exposes the structured sections via `config.*` and delegates the rest (feed API keys, MISP, creds) to `extraEnvFrom`.
 
-You can also supply a **full `yeti.conf`** via `config.yetiConf` (raw INI, à la [`yeti.conf.sample`](https://github.com/yeti-platform/yeti/blob/main/yeti.conf.sample)): it is rendered into a ConfigMap and mounted read-only at `/app/yeti.conf` on the `api`/`tasks`/`events`/`beats`/`agents` pods (`subPath`), with a checksum annotation to roll pods on change. **Env vars override the file** (`core/config.py` reads `YETI_*` first), so the chart-managed infra + secrets always win — use `config.yetiConf` for the long tail (`[tag]`, `[dfiq]`, `[datadog]`, feed sections). A partial file is fine. Prefer `extraEnvFrom` (Secret) over plaintext API keys in `config.yetiConf`.
+You can also supply a raw `yeti.conf` via `config.yetiConf` (INI, à la [`yeti.conf.sample`](https://github.com/yeti-platform/yeti/blob/main/yeti.conf.sample)). It is **merged** over a base `yeti.conf` generated from `config.*`: a `merge-yeti-conf` initContainer runs `configparser.read([base, overlay])` (the same parser Yeti uses) — a **key-level merge where your file wins** — and writes the result to `/app/yeti.conf` on the `api`/`tasks`/`events`/`beats`/`agents` pods. A checksum annotation rolls pods when the base or overlay changes.
+
+> **Precedence for the mergeable sections (`[auth]`, `[rbac]`, `[events]`, `[proxy]`):** `config.yetiConf` **>** `config.*`. When `yetiConf` is set the chart stops emitting the `YETI_*` env for those sections, so the merged file is authoritative; keys you omit keep the `config.*` base value. Any extra section (feeds `[vt]`/`[otx]`/`[misp_1]`, `[tag]`, `[dfiq]`, `[github]`, `[datadog]`, …) is included as-is.
+>
+> **Still env-managed, not overridable via `yetiConf`** (dynamic infra or must not live in a ConfigMap): `[system] export_path`, `[arangodb]`, `[redis]`, `[bloom]`, `[agents]`, auth `SECRET_KEY` / user password, `[timesketch]` & `[oidc]` credentials. Prefer `extraEnvFrom` (Secret) for API keys over plaintext here. The merge uses `config.confMergeImage` (default `python:3.14-alpine`, stdlib only).
 
 | yeti.conf section | Exposed via | Notes |
 |-------------------|-------------|-------|
@@ -77,9 +81,9 @@ You can also supply a **full `yeti.conf`** via `config.yetiConf` (raw INI, à la
 | `[proxy]` | `config.proxy.{http,https}` | Outbound proxy for feeds (`socks5://…` / `http://…`) |
 | `[system] export_path` | `config.system.exportPath` | Local (PVC) **or** `s3://bucket/prefix` (`AWS_*` creds via `extraEnvFrom`, image with the `s3` extra) |
 | `[timesketch]` | `config.timesketch.{enabled,endpoint,existingSecret}` | Optional integration (Timesketch = backlog) |
-| `[misp]`, `[vt]`, `[otx]`, `[shodan]`, `[censys]`, `[abuseIPDB]`, `[dnsdb]`, `[github]`, `[datadog]`, … | **`extraEnvFrom`** or **`config.yetiConf`** | API keys / creds. Secret via `extraEnvFrom` (preferred) or raw INI via `config.yetiConf` |
-| any section (raw file) | `config.yetiConf` | Full `yeti.conf` mounted at `/app/yeti.conf`. Overridden by chart env for managed keys |
-| `[auth]`, `[arangodb]`, `[redis]`, `[bloom]` | managed by the chart | secret/hosts/bloom already wired |
+| `[misp]`, `[vt]`, `[otx]`, `[shodan]`, `[censys]`, `[abuseIPDB]`, `[dnsdb]`, `[tag]`, `[dfiq]`, `[github]`, `[datadog]`, … | **`extraEnvFrom`** or **`config.yetiConf`** | Long tail. Secret via `extraEnvFrom` (preferred for keys) or raw INI via `config.yetiConf` |
+| `[auth]`, `[rbac]`, `[events]`, `[proxy]` (mergeable) | `config.*` **base**, overridable by **`config.yetiConf`** | Generated into `base.conf`; `yetiConf` wins per key at merge time |
+| `[arangodb]`, `[redis]`, `[bloom]`, `[system] export_path` | managed by the chart | hosts/paths wired dynamically — **not** overridable via `config.yetiConf` |
 
 Feeds + S3 example:
 
@@ -169,6 +173,7 @@ helm upgrade yeti . -n cti \
 | config.auth.accessTokenExpireMinutes | int | `10000` |  |
 | config.auth.browserTokenExpireMinutes | int | `43200` |  |
 | config.auth.enabled | bool | `true` |  |
+| config.confMergeImage | string | `"python:3.14-alpine"` |  |
 | config.createUser | bool | `true` |  |
 | config.events.consumersConcurrency | int | `2` |  |
 | config.events.keepRatio | float | `0.9` |  |
