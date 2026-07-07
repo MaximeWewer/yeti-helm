@@ -102,6 +102,7 @@ template_dir = {{ .Values.config.system.templateDir }}
 webroot = {{ printf "https://%s" .Values.ingress.host }}
 {{- end }}
 [auth]
+module = {{ .Values.config.oidc.enabled | ternary "oidc" "local" }}
 enabled = {{ .Values.config.auth.enabled | ternary "True" "False" }}
 algorithm = HS256
 access_token_expire_minutes = {{ .Values.config.auth.accessTokenExpireMinutes }}
