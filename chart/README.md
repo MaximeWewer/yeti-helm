@@ -111,7 +111,7 @@ helm upgrade yeti . -n cti \
 
 | Repository | Name | Version |
 |------------|------|---------|
-| oci://registry-1.docker.io/cloudpirates | redis | 0.30.* |
+| oci://registry-1.docker.io/cloudpirates | redis | 0.32.* |
 
 ## Values
 
@@ -183,7 +183,7 @@ helm upgrade yeti . -n cti \
 | config.imagePullPolicy | string | `"IfNotPresent"` |  |
 | config.initDependencyCheck.image | string | `"busybox:1.36"` |  |
 | config.oidc.allowedExtraAudiences | string | `""` |  |
-| config.oidc.discoveryUrl | string | `"https://accounts.google.com/.well-known/openid-configuration"` |  |
+| config.oidc.discoveryUrl | string | `"https://example.com/.well-known/openid-configuration"` |  |
 | config.oidc.enabled | bool | `false` |  |
 | config.oidc.existingSecret | string | `""` |  |
 | config.proxy.http | string | `""` |  |
