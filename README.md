@@ -8,6 +8,7 @@ Helm chart for [Yeti](https://github.com/yeti-platform/yeti) on Kubernetes.
 - ArangoDB via the [kube-arangodb](https://github.com/arangodb/kube-arangodb) operator (`ArangoDeployment`)
 - Redis via the [CloudPirates](https://github.com/CloudPirates-io/helm-charts) chart (Celery broker)
 - NetworkPolicies, PodDisruptionBudget, hardened securityContext, generate-once secrets
+- Optional Prometheus metrics (`metrics.enabled`): nginx exporter sidecar, Celery exporter, native ArangoDB/Redis metrics, ServiceMonitors
 - `extraEnvFrom` for feed API keys / MISP / S3 (`YETI_<SECTION>_<KEY>`)
 - Automated weekly version updates tracking upstream Yeti releases
 

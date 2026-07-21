@@ -1,0 +1,60 @@
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+{{- /* ArangoDB is NOT here: its ServiceMonitor is created by the kube-arangodb
+       operator itself (ArangoDeployment spec.metrics.serviceMonitor). */}}
+{{- $ns := .Values.metrics.serviceMonitor.namespace | default .Release.Namespace }}
+{{- if (include "yeti.metrics.frontend" .) }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "yeti.frontend.fullname" . }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/component: frontend
+    {{- include "yeti.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.metrics.serviceMonitor.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: frontend
+      {{- include "yeti.selectorLabels" . | nindent 6 }}
+  endpoints:
+    {{- include "yeti.metrics.endpoint" (dict "root" . "port" "metrics") | nindent 4 }}
+{{- end }}
+{{- if (include "yeti.metrics.celery" .) }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "yeti.celeryExporter.fullname" . }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/component: celery-exporter
+    {{- include "yeti.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.metrics.serviceMonitor.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: celery-exporter
+      {{- include "yeti.selectorLabels" . | nindent 6 }}
+  endpoints:
+    {{- include "yeti.metrics.endpoint" (dict "root" . "port" "metrics") | nindent 4 }}
+{{- end }}
+{{- end }}

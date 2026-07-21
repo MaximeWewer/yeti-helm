@@ -72,6 +72,64 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "yeti.agents.fullname" -}}{{ printf "%s-agents" (include "yeti.fullname" .) }}{{- end }}
 {{- define "yeti.arangodb.fullname" -}}{{ printf "%s-arangodb" (include "yeti.fullname" .) }}{{- end }}
 
+{{/* Metrics: per-exporter switches (master switch AND per-component switch).
+     Emit a non-empty string when on, so callers can use `if (include ...)`. */}}
+{{- define "yeti.metrics.frontend" -}}
+{{- if and .Values.metrics.enabled .Values.metrics.frontend.enabled -}}true{{- end -}}
+{{- end }}
+{{- define "yeti.metrics.celery" -}}
+{{- if and .Values.metrics.enabled .Values.metrics.celery.enabled -}}true{{- end -}}
+{{- end }}
+{{- define "yeti.metrics.arangodb" -}}
+{{- if and .Values.metrics.enabled .Values.metrics.arangodb.enabled .Values.arangodb.enabled -}}true{{- end -}}
+{{- end }}
+
+{{/* celery-exporter object name. */}}
+{{- define "yeti.celeryExporter.fullname" -}}{{ printf "%s-celery-exporter" (include "yeti.fullname" .) }}{{- end }}
+
+{{/* Annotation-based scrape config for an exporter Service. Args: root, port. */}}
+{{- define "yeti.metrics.scrapeAnnotations" -}}
+{{- if .root.Values.metrics.scrapeAnnotations }}
+prometheus.io/scrape: "true"
+prometheus.io/port: {{ .port | quote }}
+prometheus.io/path: "/metrics"
+{{- end }}
+{{- end }}
+
+{{/* Shared ServiceMonitor endpoint block. Args: root, port (name of the service
+     port to scrape). */}}
+{{- define "yeti.metrics.endpoint" -}}
+{{- $m := .root.Values.metrics.serviceMonitor -}}
+- port: {{ .port }}
+  path: /metrics
+  interval: {{ $m.interval }}
+  {{- with $m.scrapeTimeout }}
+  scrapeTimeout: {{ . }}
+  {{- end }}
+  honorLabels: {{ $m.honorLabels }}
+  {{- with $m.relabelings }}
+  relabelings:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $m.metricRelabelings }}
+  metricRelabelings:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+
+{{/* Celery worker command. The stock image entrypoint ("tasks") starts the
+     worker WITHOUT task events, which celery-exporter needs, so when celery
+     metrics are on we spell out the same upstream command plus `-E`.
+     Upstream: uv run celery -A core.taskscheduler worker --loglevel=INFO
+               --purge -P threads   (docker-entrypoint.sh, yeti 2.5.x) */}}
+{{- define "yeti.tasks.args" -}}
+{{- if and (include "yeti.metrics.celery" .) .Values.metrics.celery.workerTaskEvents -}}
+["uv", "run", "celery", "-A", "core.taskscheduler", "worker", "--loglevel=INFO", "--purge", "-P", "threads", "-E"]
+{{- else -}}
+["tasks"]
+{{- end -}}
+{{- end }}
+
 {{/* Redis service name (CloudPirates subchart uses <release>-redis by default). */}}
 {{- define "yeti.redis.host" -}}
 {{- if .Values.externalRedis.host -}}

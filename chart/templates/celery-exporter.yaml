@@ -1,0 +1,112 @@
+{{- if (include "yeti.metrics.celery" .) }}
+{{- /* Celery has no built-in Prometheus endpoint, so metrics are collected out
+       of band: celery-exporter subscribes to the worker event stream on the
+       Redis broker and exposes them on :9808. It needs task events, which the
+       `tasks` worker only emits when started with -E (see yeti.tasks.args). */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "yeti.celeryExporter.fullname" . }}
+  labels:
+    app.kubernetes.io/component: celery-exporter
+    {{- include "yeti.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: celery-exporter
+      {{- include "yeti.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: celery-exporter
+        {{- include "yeti.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "yeti.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        {{- /* The exporter connects to the broker at startup and does not
+               recover if it is unreachable then — gate the start on Redis. */}}
+        {{- include "yeti.initWaitRedis" . | nindent 8 }}
+      containers:
+        - name: celery-exporter
+          image: {{ include "yeti.image" (dict "img" .Values.metrics.celery.image "root" .) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- with .Values.metrics.celery.extraArgs }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            # Same broker/db as the Yeti workers (Celery broker, no auth).
+            - name: CE_BROKER_URL
+              value: {{ printf "redis://%s:%v/0" (include "yeti.redis.host" .) (.Values.externalRedis.port | default 6379) | quote }}
+            - name: CE_HOST
+              value: "0.0.0.0"
+            - name: CE_PORT
+              value: {{ .Values.metrics.celery.port | quote }}
+            - name: CE_RETRY_INTERVAL
+              value: "5"
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.metrics.celery.port }}
+              protocol: TCP
+          {{- /* Probe /health, not /metrics: the latter polls the broker for
+                 queue lengths and takes ~2s, which trips the default 1s probe
+                 timeout and flaps the pod. */}}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.metrics.celery.resources | nindent 12 }}
+      {{- with .Values.tasks.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tasks.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tasks.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "yeti.celeryExporter.fullname" . }}
+  labels:
+    app.kubernetes.io/component: celery-exporter
+    {{- include "yeti.labels" . | nindent 4 }}
+  {{- with (include "yeti.metrics.scrapeAnnotations" (dict "root" . "port" .Values.metrics.celery.port)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: metrics
+      port: {{ .Values.metrics.celery.port }}
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: celery-exporter
+    {{- include "yeti.selectorLabels" . | nindent 4 }}
+{{- end }}

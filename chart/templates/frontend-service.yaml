@@ -5,6 +5,12 @@ metadata:
   labels:
     app.kubernetes.io/component: frontend
     {{- include "yeti.labels" . | nindent 4 }}
+  {{- if (include "yeti.metrics.frontend" .) }}
+  {{- with (include "yeti.metrics.scrapeAnnotations" (dict "root" . "port" .Values.metrics.frontend.port)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- end }}
 spec:
   type: {{ .Values.frontend.service.type }}
   ports:
@@ -12,6 +18,12 @@ spec:
       port: {{ .Values.frontend.service.port }}
       targetPort: http
       protocol: TCP
+    {{- if (include "yeti.metrics.frontend" .) }}
+    - name: metrics
+      port: {{ .Values.metrics.frontend.port }}
+      targetPort: metrics
+      protocol: TCP
+    {{- end }}
   selector:
     app.kubernetes.io/component: frontend
     {{- include "yeti.selectorLabels" . | nindent 4 }}

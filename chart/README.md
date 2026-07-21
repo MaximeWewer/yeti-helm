@@ -100,6 +100,32 @@ helm upgrade yeti . -n cti \
   --set 'extraEnvFrom[0].secretRef.name=yeti-feeds'
 ```
 
+## Metrics / Prometheus
+
+**Yeti ships no Prometheus endpoint.** Neither the api (FastAPI/uvicorn), the Celery workers, the agents service nor `bloomcheck` (Go) expose `/metrics` — upstream's only observability hook is a *push-based* Datadog events plugin (`[datadog]`). The chart therefore wires exporters **around** the stack, all behind `metrics.enabled` (off by default) plus a per-target switch:
+
+| Target | How | Port | Value |
+|--------|-----|------|-------|
+| `frontend` (nginx) | pod-local `stub_status` listener added to the chart-managed nginx conf + [`nginx-prometheus-exporter`](https://github.com/nginxinc/nginx-prometheus-exporter) sidecar. Covers the UI **and** the `/api/v2` proxy traffic (rps, statuses, connections). | 9113 | `metrics.frontend.enabled` |
+| `tasks` (Celery) | [`celery-exporter`](https://github.com/danihodovic/celery-exporter) Deployment subscribed to the Redis broker event stream (`celery_task_*`, `celery_worker_*`, queue length). | 9808 | `metrics.celery.enabled` |
+| ArangoDB | **native** ArangoDB metrics, enabled through `ArangoDeployment.spec.metrics` (the operator injects the exporter and, with `serviceMonitor.enabled`, its own ServiceMonitor). | 9101 | `metrics.arangodb.enabled` |
+| Redis | owned by the subchart | 9121 | `redis.metrics.enabled` (+ `redis.metrics.serviceMonitor.enabled`) |
+
+`api`, `agents`, `events` and `bloomcheck` have **no** exporter: there is nothing to scrape upstream, and the frontend exporter already accounts for the HTTP traffic that reaches the API.
+
+```sh
+helm upgrade yeti . -n cti \
+  --set metrics.enabled=true \
+  --set metrics.serviceMonitor.enabled=true \
+  --set redis.metrics.enabled=true --set redis.metrics.serviceMonitor.enabled=true
+```
+
+- **ServiceMonitors** (`metrics.serviceMonitor.enabled`) need the `monitoring.coreos.com` CRDs. If your Prometheus uses a `serviceMonitorSelector`, add the matching label via `metrics.serviceMonitor.labels` (e.g. `release: kube-prometheus-stack`).
+- Without the Prometheus Operator, set `metrics.scrapeAnnotations=true` to get `prometheus.io/{scrape,port,path}` on the exporter Services.
+- **`-E` on the worker**: Celery only emits task events when the worker is started with `-E`, which the stock `tasks` entrypoint does not do. With `metrics.celery.workerTaskEvents=true` (default) the chart replaces the `tasks` command with the same upstream celery invocation plus `-E`. Set it to `false` to keep the stock entrypoint — worker/queue metrics keep working, per-task metrics (`celery_task_*`) do not.
+- `celery_task_sent_total` stays empty: it depends on the *producer* setting `task_send_sent_event`, which Yeti does not enable in `core/taskscheduler.py`. Everything else (`celery_task_received/started/succeeded/failed/runtime`, `celery_worker_*`, `celery_queue_length`) works.
+- **NetworkPolicy**: scraping is denied by default. Declare your Prometheus peers in `metrics.networkPolicy.allowedFrom` (standard `NetworkPolicyPeer` items), e.g. `namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}`.
+
 ## Notes
 
 - `beats` (Celery beat) is a singleton — do not scale it.
@@ -252,6 +278,35 @@ helm upgrade yeti . -n cti \
 | ingress.enabled | bool | `false` |  |
 | ingress.host | string | `"yeti.example.com"` |  |
 | ingress.tls | list | `[]` |  |
+| metrics.arangodb.enabled | bool | `true` |  |
+| metrics.arangodb.port | int | `9101` |  |
+| metrics.celery.enabled | bool | `true` |  |
+| metrics.celery.extraArgs | list | `[]` |  |
+| metrics.celery.image.digest | string | `""` |  |
+| metrics.celery.image.repository | string | `"danihodovic/celery-exporter"` |  |
+| metrics.celery.image.tag | string | `"0.12.2"` |  |
+| metrics.celery.port | int | `9808` |  |
+| metrics.celery.resources | object | `{}` |  |
+| metrics.celery.workerTaskEvents | bool | `true` |  |
+| metrics.enabled | bool | `false` |  |
+| metrics.frontend.enabled | bool | `true` |  |
+| metrics.frontend.image.digest | string | `""` |  |
+| metrics.frontend.image.repository | string | `"nginx/nginx-prometheus-exporter"` |  |
+| metrics.frontend.image.tag | string | `"1.4.2"` |  |
+| metrics.frontend.port | int | `9113` |  |
+| metrics.frontend.resources | object | `{}` |  |
+| metrics.frontend.statusPort | int | `8081` |  |
+| metrics.networkPolicy.allowedFrom | list | `[]` |  |
+| metrics.scrapeAnnotations | bool | `false` |  |
+| metrics.serviceMonitor.annotations | object | `{}` |  |
+| metrics.serviceMonitor.enabled | bool | `false` |  |
+| metrics.serviceMonitor.honorLabels | bool | `false` |  |
+| metrics.serviceMonitor.interval | string | `"30s"` |  |
+| metrics.serviceMonitor.labels | object | `{}` |  |
+| metrics.serviceMonitor.metricRelabelings | list | `[]` |  |
+| metrics.serviceMonitor.namespace | string | `""` |  |
+| metrics.serviceMonitor.relabelings | list | `[]` |  |
+| metrics.serviceMonitor.scrapeTimeout | string | `""` |  |
 | nameOverride | string | `""` |  |
 | networkPolicy.enabled | bool | `true` |  |
 | networkPolicy.extraEgress | list | `[]` |  |
@@ -264,6 +319,7 @@ helm upgrade yeti . -n cti \
 | podSecurityContext.runAsNonRoot | bool | `false` |  |
 | podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | redis.auth.enabled | bool | `false` |  |
+| redis.auth.metrics | bool | `false` |  |
 | redis.enabled | bool | `true` |  |
 | redis.persistence.enabled | bool | `true` |  |
 | redis.persistence.size | string | `"2Gi"` |  |

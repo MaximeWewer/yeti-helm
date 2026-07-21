@@ -168,6 +168,21 @@ Init container: wait for Redis + ArangoDB DNS to resolve.
 {{- end }}
 
 {{/*
+Init container: wait for Redis only (celery-exporter needs the broker, nothing else).
+*/}}
+{{- define "yeti.initWaitRedis" -}}
+- name: wait-for-redis
+  image: {{ .Values.config.initDependencyCheck.image | quote }}
+  command: ["sh", "-c"]
+  args:
+    - |
+      until nc -z -w3 {{ include "yeti.redis.host" . }} {{ .Values.externalRedis.port | default 6379 }}; do echo "waiting for Redis"; sleep 5; done
+      echo "Redis reachable."
+  securityContext:
+    {{- toYaml .Values.containerSecurityContext | nindent 4 }}
+{{- end }}
+
+{{/*
 Init container: wait for the Yeti API to be initialized (workers race on DB init).
 */}}
 {{- define "yeti.initWaitApi" -}}

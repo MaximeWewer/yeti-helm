@@ -56,6 +56,29 @@ spec:
               mountPath: /etc/nginx/conf.d/default.conf
               subPath: default.conf
               readOnly: true
+        {{- if (include "yeti.metrics.frontend" .) }}
+        # Scrapes the pod-local stub_status listener (see the nginx ConfigMap).
+        - name: metrics
+          image: {{ include "yeti.image" (dict "img" .Values.metrics.frontend.image "root" .) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          args:
+            - --nginx.scrape-uri=http://127.0.0.1:{{ .Values.metrics.frontend.statusPort }}/stub_status
+            - --web.listen-address=:{{ .Values.metrics.frontend.port }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.metrics.frontend.port }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.metrics.frontend.resources | nindent 12 }}
+        {{- end }}
       volumes:
         - name: nginx-conf
           configMap:

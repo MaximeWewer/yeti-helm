@@ -38,6 +38,25 @@ spec:
         - protocol: TCP
           port: {{ .Values.agents.service.port }}
         {{- end }}
+    {{- if and .Values.metrics.enabled (or (include "yeti.metrics.frontend" .) (include "yeti.metrics.celery" .)) }}
+    # Scrape traffic to the chart-managed exporters (ArangoDB/Redis pods are not
+    # selected by this policy — they carry the operator/subchart labels).
+    - from:
+        {{- if .Values.metrics.networkPolicy.allowedFrom }}
+        {{- toYaml .Values.metrics.networkPolicy.allowedFrom | nindent 8 }}
+        {{- else }}
+        - podSelector: {}
+        {{- end }}
+      ports:
+        {{- if (include "yeti.metrics.frontend" .) }}
+        - protocol: TCP
+          port: {{ .Values.metrics.frontend.port }}
+        {{- end }}
+        {{- if (include "yeti.metrics.celery" .) }}
+        - protocol: TCP
+          port: {{ .Values.metrics.celery.port }}
+        {{- end }}
+    {{- end }}
   egress:
     # DNS
     - to: []

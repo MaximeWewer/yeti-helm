@@ -27,3 +27,20 @@ data:
             try_files $uri $uri/ /index.html;
         }
     }
+{{- if (include "yeti.metrics.frontend" .) }}
+
+    # stub_status feed for the nginx-prometheus-exporter sidecar. Bound to the
+    # pod loopback: unreachable from outside the pod, not on the Service.
+    server {
+        listen 127.0.0.1:{{ .Values.metrics.frontend.statusPort }};
+        access_log off;
+
+        location = /stub_status {
+            stub_status;
+        }
+
+        location / {
+            return 404;
+        }
+    }
+{{- end }}

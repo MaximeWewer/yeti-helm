@@ -1,7 +1,7 @@
 {{- include "yeti.workerDeployment" (dict
   "root" .
   "name" "tasks"
-  "args" "[\"tasks\"]"
+  "args" (include "yeti.tasks.args" .)
   "replicas" .Values.tasks.replicas
   "resources" .Values.tasks.resources
   "nodeSelector" .Values.tasks.nodeSelector

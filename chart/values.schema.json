@@ -113,6 +113,59 @@
         "port": { "type": "integer" }
       }
     },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "scrapeAnnotations": { "type": "boolean" },
+        "serviceMonitor": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "namespace": { "type": "string" },
+            "interval": { "type": "string" },
+            "scrapeTimeout": { "type": "string" },
+            "labels": { "type": "object" },
+            "annotations": { "type": "object" },
+            "honorLabels": { "type": "boolean" },
+            "relabelings": { "type": "array" },
+            "metricRelabelings": { "type": "array" }
+          }
+        },
+        "frontend": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "image": { "type": "object" },
+            "port": { "type": "integer" },
+            "statusPort": { "type": "integer" },
+            "resources": { "type": "object" }
+          }
+        },
+        "celery": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "image": { "type": "object" },
+            "port": { "type": "integer" },
+            "workerTaskEvents": { "type": "boolean" },
+            "extraArgs": { "type": "array" },
+            "resources": { "type": "object" }
+          }
+        },
+        "arangodb": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "port": { "type": "integer" }
+          }
+        },
+        "networkPolicy": {
+          "type": "object",
+          "properties": { "allowedFrom": { "type": "array" } }
+        }
+      }
+    },
     "serviceAccount": {
       "type": "object",
       "properties": {

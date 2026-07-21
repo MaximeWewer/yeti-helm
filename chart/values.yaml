@@ -267,6 +267,10 @@ redis:
   enabled: true
   auth:
     enabled: false
+    # Subchart default is true: it injects REDIS_PASSWORD into the metrics
+    # exporter from the auth Secret — which does not exist with auth disabled,
+    # so the sidecar would fail with CreateContainerConfigError. Keep false.
+    metrics: false
   persistence:
     enabled: true
     size: 2Gi
@@ -275,6 +279,81 @@ redis:
 externalRedis:
   host: ""
   port: 6379
+
+## Prometheus metrics.
+## Yeti exposes NO Prometheus endpoint of its own: neither the api (FastAPI),
+## the Celery workers, the agents service nor bloomcheck (Go) ship a /metrics
+## route — upstream only has a push-based Datadog *events* plugin. The chart
+## therefore wires exporters around the stack:
+##   frontend -> nginx stub_status + nginx-prometheus-exporter sidecar (:9113)
+##               (covers the whole UI + /api/v2 proxy traffic: rps, status, conns)
+##   celery   -> celery-exporter Deployment plugged on the Redis broker (:9808)
+##               (task/worker/queue metrics for the `tasks` worker)
+##   arangodb -> native ArangoDB metrics, turned on via ArangoDeployment (:9101)
+##   redis    -> owned by the subchart: set redis.metrics.enabled=true
+##               (and redis.metrics.serviceMonitor.enabled=true)
+## api / agents / bloomcheck / events have no exporter: nothing to scrape
+## upstream, and no meaningful proxy for it beyond the frontend exporter.
+metrics:
+  # Master switch — nothing below is rendered unless this is true.
+  enabled: false
+  # Prometheus Operator ServiceMonitors for the chart-managed exporters.
+  # Requires the monitoring.coreos.com CRDs.
+  serviceMonitor:
+    enabled: false
+    # Namespace to create the ServiceMonitors in (default: the release namespace).
+    namespace: ""
+    interval: 30s
+    scrapeTimeout: ""
+    # Extra labels — required when Prometheus uses a serviceMonitorSelector
+    # (e.g. `release: kube-prometheus-stack`).
+    labels: {}
+    annotations: {}
+    honorLabels: false
+    relabelings: []
+    metricRelabelings: []
+  # prometheus.io/{scrape,port,path} annotations on the exporter Services, for
+  # annotation-based scraping (no Prometheus Operator).
+  scrapeAnnotations: false
+  # nginx frontend metrics: adds a pod-local stub_status listener to the
+  # chart-managed nginx conf and an exporter sidecar next to it.
+  frontend:
+    enabled: true
+    image:
+      repository: nginx/nginx-prometheus-exporter
+      tag: "1.4.2"
+      digest: ""
+    # Exporter port (the scrape target).
+    port: 9113
+    # Extra nginx listener serving stub_status, bound to 127.0.0.1 in the pod.
+    statusPort: 8081
+    resources: {}
+  # Celery metrics via danihodovic/celery-exporter, connected to the broker.
+  celery:
+    enabled: true
+    image:
+      repository: danihodovic/celery-exporter
+      tag: "0.12.2"
+      digest: ""
+    port: 9808
+    # Celery only emits task events when the worker runs with `-E`, and the
+    # upstream `tasks` entrypoint does not. When true the chart replaces the
+    # `tasks` command with the same celery invocation plus `-E`. Set to false to
+    # keep the stock entrypoint: worker/queue metrics still work, per-task ones
+    # (celery_task_*) do not.
+    workerTaskEvents: true
+    # Extra celery-exporter flags, e.g. ["--queues=celery"].
+    extraArgs: []
+    resources: {}
+  # Native ArangoDB metrics (ArangoDeployment spec.metrics — the operator adds
+  # an exporter sidecar). TLS is off to match the TLS-less deployment.
+  arangodb:
+    enabled: true
+    port: 9101
+  networkPolicy:
+    # Peers allowed to reach the metrics ports (e.g. the Prometheus namespace).
+    # Standard NetworkPolicyPeer items. Empty = in-namespace peers only.
+    allowedFrom: []
 
 serviceAccount:
   create: true
