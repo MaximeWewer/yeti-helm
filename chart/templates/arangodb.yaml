@@ -38,6 +38,7 @@ spec:
     {{- end }}
   {{- end }}
   single:
+    restartPolicy: {{ .Values.arangodb.restartPolicy | default "Always" }}
     resources:
       {{- toYaml .Values.arangodb.resources | nindent 6 }}
     volumeClaimTemplate:
