@@ -54,7 +54,9 @@ spec:
       {{- end }}
   {{- if .Values.bloomcheck.persistence.enabled }}
   volumeClaimTemplates:
-    - metadata:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
         name: bloomfilters
       spec:
         accessModes:
