@@ -242,6 +242,7 @@ config:
 arangodb:
   enabled: true
   database: yeti
+  restartPolicy: Always
   # Existing Secret (keys: username, password — and NO other keys, the operator
   # rejects extra keys) for the ArangoDB root. If empty, the chart generates one.
   rootPasswordExistingSecret: ""
