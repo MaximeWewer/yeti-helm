@@ -137,7 +137,7 @@ helm upgrade yeti . -n cti \
 
 | Repository | Name | Version |
 |------------|------|---------|
-| oci://registry-1.docker.io/cloudpirates | redis | 0.33.* |
+| oci://registry-1.docker.io/cloudpirates | redis | 0.34.* |
 
 ## Values
 
@@ -148,7 +148,7 @@ helm upgrade yeti . -n cti \
 | agents.enabled | bool | `false` |  |
 | agents.image.digest | string | `""` |  |
 | agents.image.repository | string | `"yetiplatform/yeti-agents"` |  |
-| agents.image.tag | string | `"2.5.1"` |  |
+| agents.image.tag | string | `"2.6.1"` |  |
 | agents.nodeSelector | object | `{}` |  |
 | agents.persistence.accessModes[0] | string | `"ReadWriteOnce"` |  |
 | agents.persistence.enabled | bool | `true` |  |
@@ -160,7 +160,7 @@ helm upgrade yeti . -n cti \
 | api.affinity | object | `{}` |  |
 | api.image.digest | string | `""` |  |
 | api.image.repository | string | `"yetiplatform/yeti"` |  |
-| api.image.tag | string | `"2.5.1"` |  |
+| api.image.tag | string | `"2.6.1"` |  |
 | api.nodeSelector | object | `{}` |  |
 | api.replicas | int | `1` |  |
 | api.resources | object | `{}` |  |
@@ -177,6 +177,7 @@ helm upgrade yeti . -n cti \
 | arangodb.resources.limits.memory | string | `"2Gi"` |  |
 | arangodb.resources.requests.cpu | string | `"250m"` |  |
 | arangodb.resources.requests.memory | string | `"1Gi"` |  |
+| arangodb.restartPolicy | string | `"Always"` |  |
 | arangodb.rootPasswordExistingSecret | string | `""` |  |
 | beats.affinity | object | `{}` |  |
 | beats.enabled | bool | `true` |  |
@@ -256,7 +257,7 @@ helm upgrade yeti . -n cti \
 | frontend.containerPort | int | `8080` |  |
 | frontend.image.digest | string | `""` |  |
 | frontend.image.repository | string | `"yetiplatform/yeti-frontend"` |  |
-| frontend.image.tag | string | `"2.5.1"` |  |
+| frontend.image.tag | string | `"2.6.1"` |  |
 | frontend.nodeSelector | object | `{}` |  |
 | frontend.replicas | int | `1` |  |
 | frontend.resources | object | `{}` |  |
