@@ -148,7 +148,7 @@ helm upgrade yeti . -n cti \
 | agents.enabled | bool | `false` |  |
 | agents.image.digest | string | `""` |  |
 | agents.image.repository | string | `"yetiplatform/yeti-agents"` |  |
-| agents.image.tag | string | `"2.9.0"` |  |
+| agents.image.tag | string | `"2.11.0"` |  |
 | agents.nodeSelector | object | `{}` |  |
 | agents.persistence.accessModes[0] | string | `"ReadWriteOnce"` |  |
 | agents.persistence.enabled | bool | `true` |  |
@@ -160,7 +160,7 @@ helm upgrade yeti . -n cti \
 | api.affinity | object | `{}` |  |
 | api.image.digest | string | `""` |  |
 | api.image.repository | string | `"yetiplatform/yeti"` |  |
-| api.image.tag | string | `"2.9.0"` |  |
+| api.image.tag | string | `"2.11.0"` |  |
 | api.nodeSelector | object | `{}` |  |
 | api.replicas | int | `1` |  |
 | api.resources | object | `{}` |  |
@@ -257,7 +257,7 @@ helm upgrade yeti . -n cti \
 | frontend.containerPort | int | `8080` |  |
 | frontend.image.digest | string | `""` |  |
 | frontend.image.repository | string | `"yetiplatform/yeti-frontend"` |  |
-| frontend.image.tag | string | `"2.9.0"` |  |
+| frontend.image.tag | string | `"2.11.0"` |  |
 | frontend.nodeSelector | object | `{}` |  |
 | frontend.replicas | int | `1` |  |
 | frontend.resources | object | `{}` |  |
