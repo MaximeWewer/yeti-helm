@@ -2,7 +2,7 @@ apiVersion: v2
 name: yeti
 description: Yeti (threat intelligence platform)
 type: application
-version: 2.11.0-02-09-2026
+version: 2.11.0-21-09-2026
 appVersion: "2.11.0"
 home: https://yeti-platform.io/
 sources:
@@ -20,6 +20,6 @@ annotations:
   category: Security
 dependencies:
   - name: redis
-    version: "0.34.*"
+    version: "0.35.*"
     repository: "oci://registry-1.docker.io/cloudpirates"
     condition: redis.enabled
