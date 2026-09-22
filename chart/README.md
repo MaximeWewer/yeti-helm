@@ -137,7 +137,7 @@ helm upgrade yeti . -n cti \
 
 | Repository | Name | Version |
 |------------|------|---------|
-| oci://registry-1.docker.io/cloudpirates | redis | 0.34.* |
+| oci://registry-1.docker.io/cloudpirates | redis | 0.35.* |
 
 ## Values
 
