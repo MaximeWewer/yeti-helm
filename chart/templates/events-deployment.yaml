@@ -6,6 +6,8 @@
   "replicas" .Values.events.replicas
   "resources" .Values.events.resources
   "nodeSelector" .Values.events.nodeSelector
+  "tolerations" .Values.events.tolerations
+  "affinity" .Values.events.affinity
   "exports" .Values.exports.enabled
   "waitApi" true) }}
 {{- end }}

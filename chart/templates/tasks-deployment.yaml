@@ -5,5 +5,7 @@
   "replicas" .Values.tasks.replicas
   "resources" .Values.tasks.resources
   "nodeSelector" .Values.tasks.nodeSelector
+  "tolerations" .Values.tasks.tolerations
+  "affinity" .Values.tasks.affinity
   "exports" .Values.exports.enabled
   "waitApi" true) }}

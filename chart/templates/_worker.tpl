@@ -2,7 +2,7 @@
 Generic Yeti worker Deployment (Celery worker/events/beat). Uses the api image
 with a different command. Args:
   root, name, args (string literal YAML array), replicas, resources,
-  nodeSelector, exports (bool), waitApi (bool)
+  nodeSelector, tolerations, affinity, exports (bool), waitApi (bool)
 */}}
 {{- define "yeti.workerDeployment" -}}
 {{- $ctx := .root -}}
@@ -74,6 +74,14 @@ spec:
       {{- end }}
       {{- with .nodeSelector }}
       nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .affinity }}
+      affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
 {{- end }}
