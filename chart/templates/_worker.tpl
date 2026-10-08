@@ -55,15 +55,18 @@ spec:
           {{- include "yeti.envFrom" $ctx | nindent 10 }}
           resources:
             {{- toYaml .resources | nindent 12 }}
-          {{- if or .exports $ctx.Values.config.yetiConf }}
+          {{- if or .exports $ctx.Values.config.yetiConf $ctx.Values.extraVolumeMounts }}
           volumeMounts:
             {{- if .exports }}
             - name: exports
               mountPath: {{ $ctx.Values.exports.mountPath }}
             {{- end }}
             {{- include "yeti.confVolumeMount" $ctx | nindent 12 }}
+            {{- with $ctx.Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
-      {{- if or .exports $ctx.Values.config.yetiConf }}
+      {{- if or .exports $ctx.Values.config.yetiConf $ctx.Values.extraVolumes }}
       volumes:
         {{- if .exports }}
         - name: exports
@@ -71,6 +74,9 @@ spec:
             claimName: {{ $ctx.Values.exports.existingClaim | default (printf "%s-exports" (include "yeti.fullname" $ctx)) }}
         {{- end }}
         {{- include "yeti.confVolume" $ctx | nindent 8 }}
+        {{- with $ctx.Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
       {{- with .nodeSelector }}
       nodeSelector:

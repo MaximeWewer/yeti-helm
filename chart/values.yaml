@@ -402,6 +402,10 @@ podDisruptionBudget:
 # Extra env appended to all Yeti app containers.
 extraEnv: []
 
+# Extra volumes / mounts for the API and worker pods (tasks, events, beats).
+extraVolumes: []
+extraVolumeMounts: []
+
 # envFrom sources (Secrets/ConfigMaps) for all Yeti app containers. Use this for
 # feed/integration API keys (VT, OTX, Shodan, Censys, AbuseIPDB, DNSDB, MISP_*),
 # proxy credentials, AWS S3 export credentials (AWS_ACCESS_KEY_ID/...), datadog,

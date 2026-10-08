@@ -2,7 +2,7 @@ apiVersion: v2
 name: yeti
 description: Yeti (threat intelligence platform)
 type: application
-version: 2.12.0-06-10-2026
+version: 2.12.0-08-10-2026
 appVersion: "2.12.0"
 home: https://yeti-platform.io/
 sources:
