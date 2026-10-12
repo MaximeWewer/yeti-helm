@@ -137,7 +137,7 @@ helm upgrade yeti . -n cti \
 
 | Repository | Name | Version |
 |------------|------|---------|
-| oci://registry-1.docker.io/cloudpirates | redis | 0.35.* |
+| oci://registry-1.docker.io/cloudpirates | redis | 0.37.* |
 
 ## Values
 
@@ -253,6 +253,8 @@ helm upgrade yeti . -n cti \
 | externalRedis.port | int | `6379` |  |
 | extraEnv | list | `[]` |  |
 | extraEnvFrom | list | `[]` |  |
+| extraVolumeMounts | list | `[]` |  |
+| extraVolumes | list | `[]` |  |
 | frontend.affinity | object | `{}` |  |
 | frontend.containerPort | int | `8080` |  |
 | frontend.image.digest | string | `""` |  |
